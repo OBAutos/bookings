@@ -1261,8 +1261,13 @@ function generateSlots() {
     const isSun = dayInWeek === 6;
     const isSat = dayInWeek === 5;
     const isPast = key < todayStr;
-    slots[key] = { booked: false, past: isPast, sunday: isSun, saturday: isSat };
-  }
+slots[key] = {
+  booked: 0,
+  limit: isSat ? 3 : 4,
+  past: isPast,
+  sunday: isSun,
+  saturday: isSat
+};  }
   return slots;
 }
 
@@ -1390,7 +1395,13 @@ function CustomerPortal({ cars, setCars, slots, setSlots, bookings, setBookings 
 
   function handleBooking() {
     setCars(function(prev) { return Object.assign({}, prev, { [carData.reg]: Object.assign({}, prev[carData.reg], { owner: name.trim() }) }); });
-    setSlots(function(prev) { return Object.assign({}, prev, { [chosenDate]: { booked: true } }); });
+   setSlots(function(prev) {
+  return Object.assign({}, prev, {
+    [chosenDate]: Object.assign({}, prev[chosenDate], {
+      booked: prev[chosenDate].booked + 1
+    })
+  });
+});
     setBookings(function(prev) { return prev.concat([{ id: Date.now(), name: name, reg: carData.reg, service: chosenService, date: chosenDate, notes: notes, priceBand: carData.priceBand, car: carData.make + " " + carData.model }]); });
     setStep("done");
   }
@@ -1554,9 +1565,35 @@ function CustomerPortal({ cars, setCars, slots, setSlots, bookings, setBookings 
               const isSat = d.getDay() === 6;
               const selected = chosenDate === date;
               return (
-                <div key={date} onClick={function() { if (!slots[date].past && !slots[date].booked && !slots[date].sunday) setChosenDate(date); }}
-                  style={{ padding: "6px 2px", borderRadius: 6, cursor: (slots[date].past || slots[date].booked || slots[date].sunday) ? "default" : "pointer", textAlign: "center", border: "2px solid " + (selected ? C.accent : C.border), background: selected ? C.accent + "20" : (slots[date].past || slots[date].sunday) ? "#efefef" : slots[date].saturday ? C.green + "10" : C.card, transition: "all .15s", opacity: (slots[date].past || slots[date].sunday) ? 0.3 : 1 }}>
-                  <p style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, color: (slots[date].past || slots[date].sunday) ? C.border : slots[date].saturday ? C.green : C.muted, marginBottom: 1 }}>
+<div
+  key={date}
+  onClick={function() {
+    if (
+      !slots[date].past &&
+      !slots[date].sunday &&
+      slots[date].booked < slots[date].limit
+    )
+      setChosenDate(date);
+}} style={{
+  padding: "6px 2px",
+  borderRadius: 6,
+  cursor: (
+    slots[date].past ||
+    slots[date].sunday ||
+    slots[date].booked >= slots[date].limit
+  ) ? "default" : "pointer",
+  textAlign: "center",
+  border: "2px solid " + (selected ? C.accent : C.border),
+  background: selected
+    ? C.accent + "20"
+    : (slots[date].past || slots[date].sunday)
+      ? "#efefef"
+      : slots[date].saturday
+        ? C.green + "10"
+        : C.card,
+  transition: "all .15s",
+  opacity: (slots[date].past || slots[date].sunday) ? 0.3 : 1
+}}>                  <p style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3, color: (slots[date].past || slots[date].sunday) ? C.border : slots[date].saturday ? C.green : C.muted, marginBottom: 1 }}>
                     {d.toLocaleDateString("en-IE", { weekday: "short" })}
                   </p>
                   <p style={{ fontSize: 14, fontWeight: 700, fontFamily: "Barlow Condensed", color: selected ? C.accent : (slots[date].past || slots[date].sunday) ? C.border : C.text, lineHeight: 1.1 }}>
