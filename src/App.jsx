@@ -1273,6 +1273,9 @@ const C = {
   green: "#22C007", orange: "#22C007",
 };
 
+const ADMIN_USER = "info@obautos.com";
+const ADMIN_PASS = "VDff1600*!";
+
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap');
   :root { color-scheme: light only; }
@@ -1475,7 +1478,7 @@ function CustomerPortal({ cars, setCars, slots, setSlots, bookings, setBookings 
           <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>Standard services will be enabled. The garage can adjust these for your vehicle.</p>
           <div style={{ display: "flex", gap: 10 }}>
             <Btn variant="ghost" small onClick={function() { setStep("lookup"); setRegError(""); }}>Back</Btn>
-            <Btn onClick={handleRegister} disabled={!regMake || !regModel || !regYear}>Save and Continue</Btn>
+            <Btn onClick={handleRegister} disabled={!regMake || !regModel}>Save and Continue</Btn>
           </div>
         </Card>
       )}
@@ -1767,7 +1770,7 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
   function startEdit(r) {
     const c = cars[r];
     setEditReg(r);
-    setFMake(c.make); setFModel(c.model); setFYear(String(c.year));
+    setFMake(c.make); setFModel(c.model);
     setFOwner(c.owner || ""); setFMobile(c.mobile || ""); setFEmail(c.email || ""); setFNotes(c.notes || "");
     setFNct(c.nctExpiry || "");
     setFServices(c.services.slice());
@@ -1777,7 +1780,7 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
   }
 
   function handleSave() {
-    if (!fMake || !fModel || !fYear || fServices.length === 0) return;
+    if (!fMake || !fModel || fServices.length === 0) return;
     setCars(function(prev) { return Object.assign({}, prev, { [editReg]: Object.assign({}, prev[editReg], { make: fMake, model: fModel, owner: fOwner, mobile: fMobile, email: fEmail, nctExpiry: fNct, notes: fNotes, services: fServices, carParts: fCarParts }) }); });
     clearForm(); setEditReg(null);
     showSuccess("Vehicle " + editReg + " updated.");
@@ -1823,7 +1826,6 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
           <Tab id="vehicles" label={"Vehicles (" + Object.keys(cars).length + ")"} />
           <Tab id="add" label="+ Add Vehicle" />
           <Tab id="nct" label="NCT Check" />
-          <Tab id="parts" label="Parts" />
           <Tab id="bookings" label={"Bookings (" + bookings.length + ")" + (lastLoginTime && bookings.filter(function(b){return b.id > lastLoginTime;}).length > 0 ? " !" : "")} />
         </div>
       </div>
