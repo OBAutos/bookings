@@ -1286,7 +1286,7 @@ const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap');
   :root { color-scheme: light only; }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #f0f2f5 !important; color: #0f1117 !important; font-family: Inter, sans-serif; min-height: 100vh; }
+  body { background: #ffffff !important; color: #0f1117 !important; font-family: Inter, sans-serif; min-height: 100vh; }
   input, select, textarea { font-family: inherit; }
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: #1a1d27; }
@@ -1845,7 +1845,7 @@ if (error) {
         const newBookings = lastLoginTime ? bookings.filter(function(b) { return b.id > lastLoginTime; }) : [];
         if (newBookings.length === 0) return null;
         return (
-          <div style={{ background: "#fff8e1", border: "2px solid #f39c12", borderRadius: 10, padding: 16, marginBottom: 20 }}>
+          <div style={{ background: "#ffffff", border: "2px solid #f39c12", borderRadius: 10, padding: 16, marginBottom: 20 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: newBookings.length > 0 ? 12 : 0 }}>
               <div className="pulse-dot" style={{ width: 10, height: 10, borderRadius: "50%", background: "#f39c12", flexShrink: 0 }} />
               <span style={{ fontWeight: 700, fontSize: 15, color: "#b7770d" }}>
@@ -2547,7 +2547,7 @@ useEffect(() => {
   function handleLogout() { setAdminAuthed(false); setTab("customer"); }
 
   return (
-    <div style={{ background: "#f0f2f5", minHeight: "100vh" }}>
+    <div style={{ background: "#ffff", minHeight: "100vh" }}>
       <style>{css}</style>
       <header style={{ background: "#ffffff", borderBottom: "1px solid " + C.border, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: "0 24px" }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
