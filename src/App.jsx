@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
 
 const LOGO = [
   "/9j/4AAQSkZJRgABAQAASABIAAD/4QDsRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAA",
@@ -1219,7 +1220,7 @@ const SEED_CARS = {
   "LM54JKL": { make: "BMW", model: "3 Series", year: 2018, colour: "Black", owner: "", nctExpiry: "2025-08-01", notes: "Run-flat tyres fitted", services: ["Interim Service","Full Service","Brake Fluid","Front Brakes","Rear Brakes","Timing Belt","Diagnostics","Other"], history: [{ date: "2024-06-01", service: "Full Service", notes: "Full service + air filter" },{ date: "2025-01-15", service: "Rear Brakes", notes: "Pads and discs replaced" }] },
 };
 
-const ALL_SERVICES = ["Interim Service","Full Service","Brake Fluid","Front Brakes","Rear Brakes","Timing Belt","NCT Prep","Tyres","Diagnostics","Other"];
+const ALL_SERVICES = ["Full Service","Intermediate Service","Brake Fluid","Front Brakes","Rear Brakes","Timing Belt/Chain","NCT Prep","Tyres","Diagnostics","Other"];
 
 const BAND1 = { "Interim Service": 180, "Full Service": 300, "NCT Prep": 45, "Diagnostics": 75 };
 const MULTIPLIERS = { "Band 1": 1, "Band 2": 1.20, "Band 3": 1.32 };
@@ -1382,27 +1383,60 @@ function CustomerPortal({ cars, setCars, slots, setSlots, bookings, setBookings 
     setStep("select-service");
   }
 
-  function handleRegister() {
+  async function handleRegister() {
     setRegError("");
     const clean = reg.trim().replace(/\s/g, "").toUpperCase();
     if (!regMake.trim()) { setRegError("Please enter the make."); return; }
     if (!regModel.trim()) { setRegError("Please enter the model."); return; }
     const newCar = { make: regMake.trim(), model: regModel.trim(), year: null, colour: "", owner: name.trim(), mobile: regMobile.trim(), email: regEmail.trim(), nctExpiry: "", notes: "", history: [], services: ["Interim Service","Full Service","Brake Fluid","Front Brakes","Rear Brakes","Diagnostics","Other"] };
     setCars(function(prev) { return Object.assign({}, prev, { [clean]: newCar }); });
+    const { error } = await supabase
+  .from("vehicles")
+  .upsert({
+    registration: clean,
+    owner_name: name.trim(),
+    make: regMake.trim(),
+    model: regModel.trim(),
+    mobile: regMobile.trim(),
+    email: regEmail.trim(),
+    vin_number: null,
+    nct_expiry: null,
+    notes: ""
+  });
+
+if (error) {
+  console.error("Failed to save vehicle:", error);
+} else {
+  console.log("Vehicle saved to Supabase");
+}
     setCarData(Object.assign({}, newCar, { reg: clean }));
     setStep("select-service");
   }
 
-  function handleBooking() {
+  async function handleBooking() {
     setCars(function(prev) { return Object.assign({}, prev, { [carData.reg]: Object.assign({}, prev[carData.reg], { owner: name.trim() }) }); });
-   setSlots(function(prev) {
-  return Object.assign({}, prev, {
-    [chosenDate]: Object.assign({}, prev[chosenDate], {
-      booked: prev[chosenDate].booked + 1
-    })
-  });
-});
+   
     setBookings(function(prev) { return prev.concat([{ id: Date.now(), name: name, reg: carData.reg, service: chosenService, date: chosenDate, notes: notes, priceBand: carData.priceBand, car: carData.make + " " + carData.model }]); });
+    const { error } = await supabase
+  .from("bookings")
+  .insert({
+    registration: carData.reg,
+    booking_date: chosenDate,
+    service: chosenService,
+    mileage: null,
+    notes: notes
+  });
+
+if (error) {
+  console.error("Booking save failed:", error);
+} else {
+  console.log("Booking saved to Supabase");
+}
+const { data } = await supabase
+  .from("bookings")
+  .select("*");
+
+setBookings(data);
     setStep("done");
   }
 
@@ -1670,105 +1704,12 @@ function NctStatus({ nctExpiry }) {
 
 // PART_TYPES removed - use PART_TYPES instead
 
-function CarPartsEditor({ reg, carParts, setCarParts }) {
-  function updatePart(partType, field, value) {
-    setCarParts(function(prev) {
-      const updated = Object.assign({}, prev);
-      updated[partType] = Object.assign({}, prev[partType] || {}, { [field]: value });
-      return updated;
-    });
-  }
 
-  const allFilled = PART_TYPES.filter(function(pt) {
-    return carParts[pt] && carParts[pt].partNumber && carParts[pt].partNumber.trim();
-  }).length;
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <p style={{ fontSize: 13, color: C.muted }}>Enter the correct part numbers for this specific vehicle. These will be saved to the car record for quick reference.</p>
-        <span style={{ fontSize: 12, fontWeight: 700, color: C.green, background: C.green + "20", padding: "4px 10px", borderRadius: 10, whiteSpace: "nowrap", marginLeft: 12 }}>{allFilled} / {PART_TYPES.length} filled</span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {PART_TYPES.map(function(pt) {
-          const entry = carParts[pt] || {};
-          const hasPart = entry.partNumber && entry.partNumber.trim();
-          return (
-            <div key={pt} style={{ background: C.card, borderRadius: 10, padding: 16, border: "1px solid " + (hasPart ? C.accent + "60" : C.border) }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: hasPart ? C.green : C.border, flexShrink: 0 }} />
-                <span style={{ fontWeight: 700, fontSize: 14 }}>{pt}</span>
-                {hasPart && <span style={{ fontSize: 11, color: C.green, background: C.green + "20", padding: "2px 8px", borderRadius: 8 }}>Set</span>}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase" }}>Part Number</label>
-                  <input
-                    value={entry.partNumber || ""}
-                    onChange={function(e) { updatePart(pt, "partNumber", e.target.value); }}
-                    placeholder="e.g. OC115"
-                    style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: 7, padding: "9px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit" }}
-                    onFocus={function(e) { e.target.style.borderColor = C.accent; }}
-                    onBlur={function(e) { e.target.style.borderColor = C.border; }}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase" }}>Brand / Supplier</label>
-                  <input
-                    value={entry.brand || ""}
-                    onChange={function(e) { updatePart(pt, "brand", e.target.value); }}
-                    placeholder="e.g. Mann, Bosch"
-                    style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: 7, padding: "9px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit" }}
-                    onFocus={function(e) { e.target.style.borderColor = C.accent; }}
-                    onBlur={function(e) { e.target.style.borderColor = C.border; }}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase" }}>Min Cost Price (EUR)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={entry.minCost || ""}
-                    onChange={function(e) { updatePart(pt, "minCost", e.target.value); }}
-                    placeholder="e.g. 12.50"
-                    style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: 7, padding: "9px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit" }}
-                    onFocus={function(e) { e.target.style.borderColor = C.accent; }}
-                    onBlur={function(e) { e.target.style.borderColor = C.border; }}
-                  />
-                </div>
-                <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 5 }}>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase" }}>Notes</label>
-                  <input
-                    value={entry.notes || ""}
-                    onChange={function(e) { updatePart(pt, "notes", e.target.value); }}
-                    placeholder="e.g. OEM only, check qty"
-                    style={{ background: C.panel, border: "1px solid " + C.border, borderRadius: 7, padding: "9px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit" }}
-                    onFocus={function(e) { e.target.style.borderColor = C.accent; }}
-                    onBlur={function(e) { e.target.style.borderColor = C.border; }}
-                  />
-                </div>
-              </div>
-              {entry.minCost && (
-                <div style={{ marginTop: 8, fontSize: 12, color: C.green, fontWeight: 600 }}>
-                  Min cost: EUR{parseFloat(entry.minCost).toFixed(2)}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-
-function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime }) {
+function AdminPanel({ cars, setCars, bookings, lastLoginTime }) {
   const [view, setView] = useState("vehicles");
   const [success, setSuccess] = useState("");
   const [editReg, setEditReg] = useState(null);
   const [nctFilter, setNctFilter] = useState(1);
-
   const [fMake, setFMake] = useState("");
   const [fModel, setFModel] = useState("");
   const [fOwner, setFOwner] = useState("");
@@ -1776,14 +1717,14 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
   const [fEmail, setFEmail] = useState("");
   const [fNotes, setFNotes] = useState("");
   const [fNct, setFNct] = useState("");
+  const [fVin, setFVin] = useState("");
   const [fReg, setFReg] = useState("");
   const [fServices, setFServices] = useState([]);
   const [editTab, setEditTab] = useState("details"); // details | parts
-  const [fCarParts, setFCarParts] = useState({});
 
   function clearForm() {
     setFMake(""); setFModel(""); setFOwner(""); setFMobile(""); setFEmail("");
-    setFNotes(""); setFNct(""); setFReg(""); setFServices([]); setFCarParts({}); setEditTab("details");
+    setFNotes(""); setFNct(""); setFReg(""); setFServices([]); setEditTab("details");
   }
 
   function toggleService(s) {
@@ -1808,17 +1749,42 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
     const c = cars[r];
     setEditReg(r);
     setFMake(c.make); setFModel(c.model);
-    setFOwner(c.owner || ""); setFMobile(c.mobile || ""); setFEmail(c.email || ""); setFNotes(c.notes || "");
+    setFOwner(c.owner || "");
+setFMobile(c.mobile || "");
+setFEmail(c.email || "");
+setFVin(c.vin || "");
+setFNotes(c.notes || "");
     setFNct(c.nctExpiry || "");
     setFServices(c.services.slice());
-    setFCarParts(c.carParts ? JSON.parse(JSON.stringify(c.carParts)) : {});
     setEditTab("details");
     setView("edit");
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!fMake || !fModel || fServices.length === 0) return;
-    setCars(function(prev) { return Object.assign({}, prev, { [editReg]: Object.assign({}, prev[editReg], { make: fMake, model: fModel, owner: fOwner, mobile: fMobile, email: fEmail, nctExpiry: fNct, notes: fNotes, services: fServices, carParts: fCarParts }) }); });
+   const { data, error } = await supabase
+  .from("vehicles")
+  .update({
+    owner_name: fOwner,
+    make: fMake,
+    model: fModel,
+    vin_number: fVin,
+    mobile: fMobile,
+    email: fEmail,
+    nct_expiry: fNct || null,
+    notes: fNotes
+  })
+.eq("registration", editReg)
+.select();
+
+console.log("Editing registration:", editReg);
+console.log("Returned data:", data);
+if (error) {
+  console.error(error);
+  alert("Failed to update vehicle.");
+  return;
+}
+    setCars(function(prev) { return Object.assign({}, prev, { [editReg]: Object.assign({}, prev[editReg], { make: fMake, model: fModel, owner: fOwner, mobile: fMobile, email: fEmail, nctExpiry: fNct, notes: fNotes, services: fServices }) }); });
     clearForm(); setEditReg(null);
     showSuccess("Vehicle " + editReg + " updated.");
     setView("vehicles");
@@ -1848,6 +1814,12 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
       <Input label="Owner Name" value={fOwner} onChange={function(e) { setFOwner(e.target.value); }} placeholder="e.g. John Smith" />
       <Input label="Mobile Number" value={fMobile} onChange={function(e) { setFMobile(e.target.value); }} placeholder="e.g. 087 123 4567" />
       <Input label="Email Address" value={fEmail} onChange={function(e) { setFEmail(e.target.value); }} placeholder="e.g. john@email.com" />
+      <Input
+  label="VIN Number"
+  value={fVin}
+  onChange={function(e) { setFVin(e.target.value); }}
+  placeholder="e.g. WF0XXXXXXXXXXXXXXX"
+/>
       <DateInput label="NCT Expiry Date" value={fNct} onChange={function(e) { setFNct(e.target.value); }} />
 
       <Input label="Tech Notes" value={fNotes} onChange={function(e) { setFNotes(e.target.value); }} placeholder="e.g. Diesel, run-flat tyres" />
@@ -1946,40 +1918,53 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
       )}
 
       {view === "edit" && editReg && (
-        <Card>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-            <h3 style={{ fontFamily: "Barlow Condensed", fontSize: 24 }}>Edit Vehicle</h3>
-            <Badge text={editReg} color={C.accent} />
-          </div>
-          <div style={{ display: "flex", gap: 4, background: C.card, padding: 4, borderRadius: 10, marginBottom: 24 }}>
-            {[["details","Vehicle Details"],["parts","Service Parts"]].map(function(t) {
-              const active = editTab === t[0];
-              return (
-                <button key={t[0]} onClick={function() { setEditTab(t[0]); }}
-                  style={{ flex: 1, padding: "8px 0", borderRadius: 7, border: "none", fontFamily: "inherit", fontWeight: 600, fontSize: 13, cursor: "pointer", background: active ? C.accent : "transparent", color: active ? "#fff" : C.muted }}>
-                  {t[1]}
-                </button>
-              );
-            })}
-          </div>
+<Card>
+  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+    <h3 style={{ fontFamily: "Barlow Condensed", fontSize: 24 }}>Edit Vehicle</h3>
+    <Badge text={editReg} color={C.accent} />
+  </div>
 
-          {editTab === "details" && (
-            <div>
-              {VehicleForm}
-              <p style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase", margin: "20px 0 10px" }}>Available Services</p>
-              <ServicePicker selected={fServices} onToggle={toggleService} />
-            </div>
-          )}
+  <div>
+    {VehicleForm}
 
-          {editTab === "parts" && (
-            <CarPartsEditor reg={editReg} carParts={fCarParts} setCarParts={setFCarParts} />
-          )}
+    <p style={{
+      fontSize: 12,
+      fontWeight: 600,
+      color: C.muted,
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      margin: "20px 0 10px"
+    }}>
+      Available Services
+    </p>
 
-          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-            <Btn variant="ghost" small onClick={function() { clearForm(); setEditReg(null); setView("vehicles"); }}>Cancel</Btn>
-            <Btn onClick={handleSave} disabled={!fMake || !fModel || fServices.length === 0}>Save Changes</Btn>
-          </div>
-        </Card>
+    <ServicePicker
+      selected={fServices}
+      onToggle={toggleService}
+    />
+  </div>
+
+  <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+    <Btn
+      variant="ghost"
+      small
+      onClick={function() {
+        clearForm();
+        setEditReg(null);
+        setView("vehicles");
+      }}
+    >
+      Cancel
+    </Btn>
+
+    <Btn
+      onClick={handleSave}
+      disabled={!fMake || !fModel || fServices.length === 0}
+    >
+      Save Changes
+    </Btn>
+  </div>
+</Card>
       )}
 
       {view === "nct" && (
@@ -2048,9 +2033,14 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
       {view === "bookings" && (
         <div>
           {(function() {
-            const sorted = bookings.slice().sort(function(a, b) { return a.date.localeCompare(b.date); });
+const sorted = bookings.slice().sort(function(a, b) {
+  return a.booking_date.localeCompare(b.booking_date);
+});
             const grouped = {};
-            sorted.forEach(function(b) { if (!grouped[b.date]) grouped[b.date] = []; grouped[b.date].push(b); });
+            sorted.forEach(function(b) {
+  if (!grouped[b.booking_date]) grouped[b.booking_date] = [];
+  grouped[b.booking_date].push(b);
+});
             if (sorted.length === 0) return <Card><p style={{ color: C.muted, textAlign: "center" }}>No bookings yet.</p></Card>;
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -2073,17 +2063,30 @@ function AdminPanel({ cars, setCars, bookings, parts, setParts, lastLoginTime })
                         {dayBookings.map(function(b) {
                           return (
                             <Card key={b.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: 16 }}>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
-                                  <span style={{ fontWeight: 700, fontSize: 15 }}>{b.name}</span>
-                                  <Badge text={b.reg} color={C.accent} />
-                                  <Badge text={b.service} color={C.muted} />
-                                </div>
-                                <p style={{ fontSize: 12, color: C.muted }}>{b.car}</p>
-                                {b.notes && <p style={{ fontSize: 12, color: C.green, marginTop: 4 }}>Notes: {b.notes}</p>}
-                              </div>
-                              <Badge text={"POQ" || "POQ"} color={C.green} />
-                            </Card>
+  <div style={{ flex: 1 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+      <span style={{ fontWeight: 700, fontSize: 15 }}>
+        {cars[b.registration]?.owner || "Unknown Customer"}
+      </span>
+
+      <Badge text={b.registration} color={C.accent} />
+
+      <Badge text={b.service} color={C.muted} />
+    </div>
+
+    <p style={{ fontSize: 12, color: C.muted }}>
+      {(cars[b.registration]?.make || "") + " " + (cars[b.registration]?.model || "")}
+    </p>
+
+    {b.notes && (
+      <p style={{ fontSize: 12, color: C.green, marginTop: 4 }}>
+        Notes: {b.notes}
+      </p>
+    )}
+  </div>
+
+  <Badge text="POQ" color={C.green} />
+</Card>
                           );
                         })}
                       </div>
@@ -2477,13 +2480,69 @@ function AdminLogin({ onSuccess }) {
 }
 
 export default function App() {
-  const [cars, setCars] = useState(SEED_CARS);
+  const [cars, setCars] = useState({});
   const [parts, setParts] = useState(INITIAL_PARTS);
   const [slots, setSlots] = useState(generateSlots());
   const [bookings, setBookings] = useState([]);
   const [tab, setTab] = useState("customer");
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [adminLoginTime, setAdminLoginTime] = useState(null);
+useEffect(() => {
+  async function loadVehicles() {
+    const { data, error } = await supabase
+      .from("vehicles")
+      .select("*");
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    const loadedCars = {};
+
+    data.forEach(function(v) {
+      loadedCars[v.registration] = {
+        make: v.make,
+        model: v.model,
+        year: null,
+        colour: "",
+        owner: v.owner_name,
+        mobile: v.mobile,
+        email: v.email,
+        vin: v.vin_number || "",
+        nctExpiry: v.nct_expiry || "",
+        notes: v.notes || "",
+        history: [],
+        services: ALL_SERVICES
+      };
+    });
+
+    setCars(loadedCars);
+
+    console.log("Loaded vehicles:", loadedCars);
+  }
+ async function loadBookings() {
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("*");
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setBookings(data);
+
+    console.log("Loaded bookings:", data);
+  }
+
+  // <<< THEN CHANGE THIS >>>
+
+  loadVehicles();
+  loadBookings();
+
+}, []);
+
 
   function handleLogout() { setAdminAuthed(false); setTab("customer"); }
 
