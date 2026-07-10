@@ -2549,9 +2549,17 @@ useEffect(() => {
   return (
     <div style={{ background: "#ffff", minHeight: "100vh" }}>
       <style>{css}</style>
-      <header style={{ background: "#ffffff", borderBottom: "1px solid " + C.border, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: "0 24px" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
-          <img src={LOGO_URI} alt="OB Autos" style={{ height: 48, objectFit: "contain", cursor: "default" }} onDoubleClick={function() { setTab("admin"); }} title="" />
+      <header style={{ background: "#fafafa", borderBottom: "1px solid " + C.border, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: "0 24px" }}>
+<div
+  style={{
+    width: "100%",
+    position: "relative",
+    height: 64,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+  }}
+>          <img src={LOGO_URI} alt="OB Autos" style={{ height: 48, objectFit: "contain", cursor: "default" }} onDoubleClick={function() { setTab("admin"); }} title="" />
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {tab === "admin" && (
               <div style={{ display: "flex", gap: 4, background: C.card, padding: 4, borderRadius: 10 }}>
