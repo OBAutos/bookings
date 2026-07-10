@@ -1372,11 +1372,21 @@ function toggleService(service) {
   const [regEmail, setRegEmail] = useState("");
   const [regError, setRegError] = useState("");
 
-  function resetAll() {
-    setStep("lookup"); setName(""); setReg(""); setCarData(null);
-    setChosenService(""); setChosenDate(""); setNotes(""); setError("");
-    setRegMake(""); setRegModel(""); setRegMobile(""); setRegEmail(""); setRegError("");
-  }
+function resetAll() {
+  setStep("lookup");
+  setName("");
+  setReg("");
+  setCarData(null);
+  setChosenServices([]);
+  setChosenDate("");
+  setNotes("");
+  setError("");
+  setRegMake("");
+  setRegModel("");
+  setRegMobile("");
+  setRegEmail("");
+  setRegError("");
+}
 
   function handleLookup() {
     setError("");
@@ -1423,13 +1433,13 @@ if (error) {
   async function handleBooking() {
     setCars(function(prev) { return Object.assign({}, prev, { [carData.reg]: Object.assign({}, prev[carData.reg], { owner: name.trim() }) }); });
    
-    setBookings(function(prev) { return prev.concat([{ id: Date.now(), name: name, reg: carData.reg, service: chosenService, date: chosenDate, notes: notes, priceBand: carData.priceBand, car: carData.make + " " + carData.model }]); });
+    setBookings(function(prev) { return prev.concat([{ id: Date.now(), name: name, reg: carData.reg, service: chosenServices, date: chosenDate, notes: notes, priceBand: carData.priceBand, car: carData.make + " " + carData.model }]); });
     const { error } = await supabase
   .from("bookings")
   .insert({
     registration: carData.reg,
     booking_date: chosenDate,
-    service: chosenService,
+    service: chosenServices,
     mileage: null,
     notes: notes
   });
@@ -1438,13 +1448,25 @@ if (error) {
   console.error("Booking save failed:", error);
 } else {
   console.log("Booking saved to Supabase");
+
+  await supabase.functions.invoke("notify-booking", {
+    body: {
+      registration: carData.reg,
+      name: name,
+      vehicle: carData.make + " " + carData.model,
+      services: chosenServices,
+      date: chosenDate,
+      notes: notes,
+    },
+  });
 }
+
 const { data } = await supabase
   .from("bookings")
   .select("*");
 
 setBookings(data);
-    setStep("done");
+setStep("done");
   }
 
   const availDates = Object.keys(slots).sort();
@@ -1462,8 +1484,12 @@ setBookings(data);
           </strong>
         </p>
         <Card style={{ textAlign: "left", marginBottom: 24 }}>
-          {carData && [["Name", name], ["Vehicle", carData.make + " " + carData.model], ["Registration", carData.reg], ["Service", chosenService]].map(function(pair) {
-            return (
+{carData && [
+  ["Name", name],
+  ["Vehicle", carData.make + " " + carData.model],
+  ["Registration", carData.reg],
+  ["Services", chosenServices.join(", ")]
+].map(function(pair) {            return (
               <div key={pair[0]} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid " + C.border }}>
                 <span style={{ color: C.muted, fontSize: 13 }}>{pair[0]}</span>
                 <span style={{ fontWeight: 600 }}>{pair[1]}</span>
@@ -1722,8 +1748,18 @@ setBookings(data);
       {step === "confirm" && carData && (
         <Card>
           <h3 style={{ fontFamily: "Barlow Condensed", fontSize: 26, marginBottom: 20 }}>Confirm Your Booking</h3>
-          {[["Name", name], ["Vehicle", carData.make + " " + carData.model], ["Registration", carData.reg], ["Service", chosenService], ["Date", new Date(chosenDate + "T00:00:00").toLocaleDateString("en-IE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })]].map(function(pair) {
-            return (
+{[
+  ["Name", name],
+  ["Vehicle", carData.make + " " + carData.model],
+  ["Registration", carData.reg],
+  ["Services", chosenServices.join(", ")],
+  ["Date", new Date(chosenDate + "T00:00:00").toLocaleDateString("en-IE", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  })]
+].map(function(pair) {            return (
               <div key={pair[0]} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid " + C.border }}>
                 <span style={{ color: C.muted, fontSize: 13 }}>{pair[0]}</span>
                 <span style={{ fontWeight: 600, fontSize: 14 }}>{pair[1]}</span>
