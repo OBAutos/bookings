@@ -1354,7 +1354,14 @@ function CustomerPortal({ cars, setCars, slots, setSlots, bookings, setBookings 
   const [name, setName] = useState("");
   const [reg, setReg] = useState("");
   const [carData, setCarData] = useState(null);
-  const [chosenService, setChosenService] = useState("");
+const [chosenServices, setChosenServices] = useState([]);
+function toggleService(service) {
+  setChosenServices(function(prev) {
+    return prev.includes(service)
+      ? prev.filter(function(s) { return s !== service; })
+      : prev.concat(service);
+  });
+}
   const [chosenDate, setChosenDate] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -1566,27 +1573,84 @@ setBookings(data);
           )}
 
           <Card>
-            <p style={{ fontSize: 12, fontWeight: 600, color: C.muted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 16 }}>Select a Service</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {carData.services.map(function(s) {
-                const selected = chosenService === s;
-                return (
-                  <div key={s} onClick={function() { setChosenService(s); }}
-                    style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderRadius: 10, cursor: "pointer", border: "2px solid " + (selected ? C.accent : C.border), background: selected ? C.accent + "15" : C.card, transition: "all .15s" }}>
-                    <div>
-                      <span style={{ fontWeight: 600, fontSize: 14 }}>{s}</span>
-                      {s === "Diagnostics" && <p style={{ fontSize: 11, color: C.green, marginTop: 2 }}>Initial diagnostic fee - further work quoted separately</p>}
-                    </div>
+  <p style={{
+    fontSize: 12,
+    fontWeight: 600,
+    color: C.muted,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 16
+  }}>
+    Select Services
+  </p>
 
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
-              <Btn variant="ghost" small onClick={function() { setStep("lookup"); }}>Back</Btn>
-              <Btn onClick={function() { if (chosenService) setStep("select-slot"); }} disabled={!chosenService}>Next: Pick a Date</Btn>
-            </div>
-          </Card>
+  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    {carData.services.map(function(s) {
+      const selected = chosenServices.includes(s);
+
+      return (
+        <div
+          key={s}
+          onClick={function() { toggleService(s); }}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "12px 16px",
+            borderRadius: 10,
+            cursor: "pointer",
+            border: "2px solid " + (selected ? C.accent : C.border),
+            background: selected ? C.accent + "15" : C.card,
+            transition: "all .15s"
+          }}
+        >
+          <div>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>{s}</span>
+
+            {s === "Diagnostics" && (
+              <p style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
+                Initial diagnostic fee - further work quoted separately
+              </p>
+            )}
+          </div>
+
+          <div style={{
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            border: "2px solid " + (selected ? C.accent : C.border),
+            background: selected ? C.accent : "#fff",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 12,
+            fontWeight: 700
+          }}>
+            {selected ? "✓" : ""}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+    <Btn
+      variant="ghost"
+      small
+      onClick={function() { setStep("lookup"); }}
+    >
+      Back
+    </Btn>
+
+    <Btn
+      onClick={function() { if (chosenServices.length) setStep("select-slot"); }}
+      disabled={!chosenServices.length}
+    >
+      Next: Pick a Date
+    </Btn>
+  </div>
+</Card>
         </div>
       )}
 
@@ -2547,7 +2611,7 @@ useEffect(() => {
   function handleLogout() { setAdminAuthed(false); setTab("customer"); }
 
   return (
-    <div style={{ background: "#ffff", minHeight: "100vh" }}>
+    <div style={{ background: "#f0f0f0", minHeight: "100vh" }}>
       <style>{css}</style>
       <header style={{ background: "#fafafa", borderBottom: "1px solid " + C.border, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", padding: "0 24px" }}>
 <div
