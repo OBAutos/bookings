@@ -1604,15 +1604,23 @@ setBookings(data);
             transition: "all .15s"
           }}
         >
-          <div>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>{s}</span>
+         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+  <div style={{ fontWeight: 600, fontSize: 14 }}>
+    {s}
+  </div>
 
-            {s === "Diagnostics" && (
-              <p style={{ fontSize: 11, color: C.green, marginTop: 2 }}>
-                Initial diagnostic fee - further work quoted separately
-              </p>
-            )}
-          </div>
+  {s === "Diagnostics" && (
+    <p
+      style={{
+        fontSize: 11,
+        color: C.green,
+        margin: "4px 0 0 0"
+      }}
+    >
+      Initial diagnostic fee - further works to be quoted separately
+    </p>
+  )}
+</div>
 
           <div style={{
             width: 20,
