@@ -1853,7 +1853,7 @@ function NctStatus({ nctExpiry }) {
 // PART_TYPES removed - use PART_TYPES instead
 
 
-function AdminPanel({ cars, setCars, bookings, lastLoginTime }) {
+function AdminPanel({ cars, setCars, bookings, setBookings, lastLoginTime }) {
   const [view, setView] = useState("vehicles");
   const [success, setSuccess] = useState("");
   const [editReg, setEditReg] = useState(null);
@@ -1869,6 +1869,9 @@ function AdminPanel({ cars, setCars, bookings, lastLoginTime }) {
   const [fReg, setFReg] = useState("");
   const [fServices, setFServices] = useState([]);
   const [editTab, setEditTab] = useState("details"); // details | parts
+const [editBooking, setEditBooking] = useState(null);
+const [newBookingDate, setNewBookingDate] = useState("");
+const [showBookingEditor, setShowBookingEditor] = useState(false);
 
   function clearForm() {
     setFMake(""); setFModel(""); setFOwner(""); setFMobile(""); setFEmail("");
@@ -1959,7 +1962,57 @@ setCars(function(prev) {
     setCars(function(prev) { const next = Object.assign({}, prev); delete next[r]; return next; });
     showSuccess("Vehicle " + r + " removed.");
   }
+async function handleDeleteBooking(id) {
+  if (!confirm("Delete this booking?")) return;
 
+  const { error } = await supabase
+    .from("bookings")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error(error);
+    alert("Failed to delete booking.");
+    return;
+  }
+
+  setBookings(function(prev) {
+    return prev.filter(function(b) {
+      return b.id !== id;
+    });
+  });
+}
+async function handleChangeBookingDate() {
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      booking_date: newBookingDate
+    })
+    .eq("id", editBooking.id);
+
+  if (error) {
+    console.error(error);
+    alert("Failed to update booking.");
+    return;
+  }
+
+  setBookings(function(prev) {
+    return prev
+      .map(function(b) {
+        if (b.id !== editBooking.id) return b;
+
+        return Object.assign({}, b, {
+          booking_date: newBookingDate
+        });
+      })
+      .sort(function(a, b) {
+        return a.booking_date.localeCompare(b.booking_date);
+      });
+  });
+
+  setEditBooking(null);
+  showSuccess("Booking date updated.");
+}
   function Tab(props) {
     const active = view === props.id;
     return (
@@ -2271,6 +2324,58 @@ const sorted = bookings.slice().sort(function(a, b) {
       </p>
     )}
   </div>
+  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+  {editBooking?.id === b.id ? (
+    <>
+      <DateInput
+        value={newBookingDate}
+        onChange={function(e) {
+          setNewBookingDate(e.target.value);
+        }}
+      />
+
+<Btn
+  small
+  onClick={handleChangeBookingDate}
+>
+  Save
+</Btn>
+
+      <Btn
+        small
+        variant="ghost"
+        onClick={function() {
+          setEditBooking(null);
+        }}
+      >
+        Cancel
+      </Btn>
+    </>
+  ) : (
+    <Btn
+      small
+      onClick={function() {
+        setEditBooking(b);
+        setNewBookingDate(b.booking_date);
+      }}
+    >
+      Change Date
+    </Btn>
+  )}
+
+  <Btn
+    small
+    variant="ghost"
+    style={{ color: "#e8472a", borderColor: "#e8472a50" }}
+    onClick={function() {
+      handleDeleteBooking(b.id);
+    }}
+  >
+    Delete
+  </Btn>
+
+</div>
 </Card>
                           );
                         })}
@@ -2343,7 +2448,26 @@ function PartsPanel({ cars, parts, setParts }) {
       return updated;
     });
   }
+async function handleDeleteBooking(id) {
+  if (!confirm("Delete this booking?")) return;
 
+  const { error } = await supabase
+    .from("bookings")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error(error);
+    alert("Failed to delete booking.");
+    return;
+  }
+
+  setBookings(function(prev) {
+    return prev.filter(function(b) {
+      return b.id !== id;
+    });
+  });
+}
   const entries = parts[activePart] || [];
   const totalCost = entries.reduce(function(s, e) { return s + e.cost; }, 0);
   const totalSale = entries.reduce(function(s, e) { return s + e.sale; }, 0);
@@ -2761,8 +2885,13 @@ useEffect(() => {
         {tab === "customer"
           ? <CustomerPortal cars={cars} setCars={setCars} slots={slots} setSlots={setSlots} bookings={bookings} setBookings={setBookings} />
           : adminAuthed
-            ? <AdminPanel cars={cars} setCars={setCars} bookings={bookings} />
-            : <AdminLogin onSuccess={function() { setAdminAuthed(true); setLastLoginTime(Date.now()); }} />
+?<AdminPanel
+  cars={cars}
+  setCars={setCars}
+  bookings={bookings}
+  setBookings={setBookings}
+  lastLoginTime={adminLoginTime}
+/>            : <AdminLogin onSuccess={function() { setAdminAuthed(true); setAdminLoginTime(Date.now()); }} />
         }
       </main>
     </div>
