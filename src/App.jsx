@@ -2340,13 +2340,13 @@ const sorted = bookings.slice().sort(function(a, b) {
   onClick={handleChangeBookingDate}
 >
   Save
-</Btn>
+</Btn> 
 
       <Btn
         small
         variant="ghost"
         onClick={function() {
-          setEditBooking(null);
+          setEditBooking(null)  ;
         }}
       >
         Cancel
