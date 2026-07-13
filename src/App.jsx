@@ -1920,7 +1920,7 @@ function clearForm() {
 
   function handleAdd() {
     const clean = fReg.trim().replace(/\s/g, "").toUpperCase();
-    if (!clean || !fMake || !fModel || !fYear || fServices.length === 0) return;
+    if (!clean || !fMake || !fModel ||  fServices.length === 0) return;
     setCars(function(prev) { return Object.assign({}, prev, { [clean]: { make: fMake, model: fModel, owner: fOwner, mobile: fMobile, email: fEmail, nctExpiry: fNct, notes: fNotes, services: fServices } }); });
     clearForm();
     showSuccess("Vehicle " + clean + " added.");
