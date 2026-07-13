@@ -1214,11 +1214,7 @@ const INITIAL_PARTS = {};
 PART_TYPES.forEach(function(pt) { INITIAL_PARTS[pt] = []; });
 
 // Each part entry: { id, reg, partNumber, cost, sale, date, notes }
-const SEED_CARS = {
-  "AB12CDE": { make: "Ford", model: "Focus", year: 2019, colour: "Silver", owner: "", nctExpiry: "2025-09-14", notes: "Diesel engine - use 5W-30 oil", services: ["Interim Service","Full Service","Brake Fluid","Front Brakes","Rear Brakes","Diagnostics","Other"], history: [{ date: "2024-11-10", service: "Interim Service", notes: "Oil and filter changed" }] },
-  "XY63FGH": { make: "Toyota", model: "Yaris", year: 2021, colour: "White", owner: "", nctExpiry: "2026-03-22", notes: "Hybrid - check HV battery cooling vent", services: ["Interim Service","Full Service","Brake Fluid","Front Brakes","Diagnostics","Other"], history: [] },
-  "LM54JKL": { make: "BMW", model: "3 Series", year: 2018, colour: "Black", owner: "", nctExpiry: "2025-08-01", notes: "Run-flat tyres fitted", services: ["Interim Service","Full Service","Brake Fluid","Front Brakes","Rear Brakes","Timing Belt","Diagnostics","Other"], history: [{ date: "2024-06-01", service: "Full Service", notes: "Full service + air filter" },{ date: "2025-01-15", service: "Rear Brakes", notes: "Pads and discs replaced" }] },
-};
+
 
 const ALL_SERVICES = ["Full Service","Intermediate Service","Brake Fluid","Front Brakes","Rear Brakes","Timing Belt/Chain","NCT Prep","Tyres","Diagnostics","Other"];
 
@@ -1443,7 +1439,7 @@ function resetAll() {
     const clean = reg.trim().replace(/\s/g, "").toUpperCase();
     if (!regMake.trim()) { setRegError("Please enter the make."); return; }
     if (!regModel.trim()) { setRegError("Please enter the model."); return; }
-    const newCar = { make: regMake.trim(), model: regModel.trim(), year: null, colour: "", owner: name.trim(), mobile: regMobile.trim(), email: regEmail.trim(), nctExpiry: "", notes: "", history: [], services: ["Interim Service","Full Service","Brake Fluid","Front Brakes","Rear Brakes","Diagnostics","Other"] };
+    const newCar = { make: regMake.trim(), model: regModel.trim(), year: null, colour: "", owner: name.trim(), mobile: regMobile.trim(), email: regEmail.trim(), nctExpiry: "", notes: "", services: ["Interim Service","Full Service","Brake Fluid","Front Brakes","Rear Brakes","Diagnostics","Other"] };
     setCars(function(prev) { return Object.assign({}, prev, { [clean]: newCar }); });
     const { error } = await supabase
   .from("vehicles")
@@ -1872,12 +1868,42 @@ function AdminPanel({ cars, setCars, bookings, setBookings, lastLoginTime }) {
 const [editBooking, setEditBooking] = useState(null);
 const [newBookingDate, setNewBookingDate] = useState("");
 const [showBookingEditor, setShowBookingEditor] = useState(false);
+const [serviceMileage, setServiceMileage] = useState("");
+const [serviceDescription, setServiceDescription] = useState("");
+const [serviceAdvisories, setServiceAdvisories] = useState("");
+const [serviceBooking, setServiceBooking] = useState(null);
+const [historyReg, setHistoryReg] = useState(null);
+const [serviceHistory, setServiceHistory] = useState([]);
+const [vehicleSearch, setVehicleSearch] = useState("");
 
-  function clearForm() {
-    setFMake(""); setFModel(""); setFOwner(""); setFMobile(""); setFEmail("");
-    setFNotes(""); setFNct(""); setFReg(""); setFServices([]); setEditTab("details");
+async function loadHistory(registration) {
+  const { data, error } = await supabase
+    .from("service_records")
+    .select("*")
+    .eq("registration", registration)
+    .order("service_date", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
   }
 
+  setHistoryReg(registration);
+  setServiceHistory(data);
+}
+
+function clearForm() {
+  setFMake("");
+  setFModel("");
+  setFOwner("");
+  setFMobile("");
+  setFEmail("");
+  setFNotes("");
+  setFNct("");
+  setFReg("");
+  setFServices([]);
+  setEditTab("details");
+}
   function toggleService(s) {
     setFServices(function(prev) { return prev.indexOf(s) >= 0 ? prev.filter(function(x) { return x !== s; }) : prev.concat([s]); });
   }
@@ -1890,7 +1916,7 @@ const [showBookingEditor, setShowBookingEditor] = useState(false);
   function handleAdd() {
     const clean = fReg.trim().replace(/\s/g, "").toUpperCase();
     if (!clean || !fMake || !fModel || !fYear || fServices.length === 0) return;
-    setCars(function(prev) { return Object.assign({}, prev, { [clean]: { make: fMake, model: fModel, owner: fOwner, mobile: fMobile, email: fEmail, nctExpiry: fNct, notes: fNotes, services: fServices, history: [] } }); });
+    setCars(function(prev) { return Object.assign({}, prev, { [clean]: { make: fMake, model: fModel, owner: fOwner, mobile: fMobile, email: fEmail, nctExpiry: fNct, notes: fNotes, services: fServices } }); });
     clearForm();
     showSuccess("Vehicle " + clean + " added.");
     setView("vehicles");
@@ -1958,10 +1984,28 @@ setCars(function(prev) {
     setView("vehicles");
   }
 
-  function handleDelete(r) {
-    setCars(function(prev) { const next = Object.assign({}, prev); delete next[r]; return next; });
-    showSuccess("Vehicle " + r + " removed.");
+ async function handleDelete(r) {
+  if (!confirm("Delete vehicle " + r + "?")) return;
+
+  const { error } = await supabase
+    .from("vehicles")
+    .delete()
+    .eq("registration", r);
+
+  if (error) {
+    console.error(error);
+    alert("Failed to delete vehicle.");
+    return;
   }
+
+  setCars(function(prev) {
+    const next = Object.assign({}, prev);
+    delete next[r];
+    return next;
+  });
+
+  showSuccess("Vehicle " + r + " removed.");
+}
 async function handleDeleteBooking(id) {
   if (!confirm("Delete this booking?")) return;
 
@@ -2013,15 +2057,79 @@ async function handleChangeBookingDate() {
   setEditBooking(null);
   showSuccess("Booking date updated.");
 }
-  function Tab(props) {
-    const active = view === props.id;
-    return (
-      <button onClick={function() { setView(props.id); if (props.id !== "edit") { clearForm(); setEditReg(null); } }}
-        style={{ padding: "9px 18px", borderRadius: 8, border: "none", fontFamily: "inherit", fontWeight: 600, fontSize: 13, cursor: "pointer", background: active ? C.accent : "transparent", color: active ? "#fff" : C.muted }}>
-        {props.label}
-      </button>
-    );
+
+async function handleSaveServiceRecord() {
+  console.log(serviceBooking);
+  const { error } = await supabase
+    .from("service_records")
+    .insert({
+      booking_id: serviceBooking.id,
+      registration: serviceBooking.registration,
+      service_date: serviceBooking.booking_date,
+      mileage: parseInt(serviceMileage, 10),
+      description: serviceDescription,
+      advisories: serviceAdvisories
+    });
+
+  if (error) {
+    console.error(error);
+    alert("Failed to save service record.");
+    return;
   }
+
+  const bookingId = serviceBooking.id;
+
+  setServiceBooking(null);
+  setServiceMileage("");
+  setServiceDescription("");
+  setServiceAdvisories("");
+
+const { error: deleteError } = await supabase
+  .from("bookings")
+  .delete()
+  .eq("id", bookingId);
+
+if (deleteError) {
+  console.error(deleteError);
+  alert("Service record saved, but booking could not be removed.");
+  return;
+}
+
+setBookings(function(prev) {
+  return prev.filter(function(b) {
+    return b.id !== bookingId;
+  });
+});
+  showSuccess("Service record saved.");
+}
+
+function Tab(props) {
+  const active = view === props.id;
+  return (
+    <button
+      onClick={function() {
+        setView(props.id);
+        if (props.id !== "edit") {
+          clearForm();
+          setEditReg(null);
+        }
+      }}
+      style={{
+        padding: "9px 18px",
+        borderRadius: 8,
+        border: "none",
+        fontFamily: "inherit",
+        fontWeight: 600,
+        fontSize: 13,
+        cursor: "pointer",
+        background: active ? C.accent : "transparent",
+        color: active ? "#fff" : C.muted
+      }}
+    >
+      {props.label}
+    </button>
+  );
+}
 
   const VehicleForm = (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -2107,11 +2215,27 @@ async function handleChangeBookingDate() {
           </div>
         );
       })()}
+{view === "vehicles" && (
+  <>
+    <Input
+      label="Search Registration"
+      value={vehicleSearch}
+      onChange={function(e) {
+        setVehicleSearch(e.target.value.toUpperCase());
+      }}
+      placeholder="e.g. 251KE4131"
+    />
 
-      {view === "vehicles" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {Object.entries(cars).map(function(entry) {
-            const r = entry[0];
+    <div style={{ height: 16 }} />
+
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+{Object.entries(cars)
+  .filter(function(entry) {
+    return entry[0]
+      .toUpperCase()
+      .includes(vehicleSearch.toUpperCase());
+  })
+  .map(function(entry) {            const r = entry[0];
             const c = entry[1];
             return (
               <Card key={r} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -2127,17 +2251,115 @@ async function handleChangeBookingDate() {
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
                     {c.services.map(function(s) { return <Badge key={s} text={s} color={C.muted} />; })}
                   </div>
-                  <p style={{ fontSize: 12, color: C.muted }}>{c.history.length + " service" + (c.history.length !== 1 ? "s" : "") + " on record"}</p>
+                  {historyReg === r && (
+  <div
+    style={{
+      marginTop: 16,
+      padding: 12,
+      background: "#f8f9fa",
+      borderRadius: 8,
+      border: "1px solid " + C.border
+    }}
+  >
+    <h4 style={{ marginBottom: 12 }}>Service History</h4>
+
+    {serviceHistory.length === 0 ? (
+      <p style={{ color: C.muted }}>No service records found.</p>
+    ) : (
+      serviceHistory.map(function(record) {
+        return (
+          <div
+            key={record.id}
+            style={{
+              borderBottom: "1px solid " + C.border,
+              paddingBottom: 12,
+              marginBottom: 12
+            }}
+          >
+            <p
+  style={{
+    fontWeight: 700,
+    fontSize: 15,
+    color: C.accent,
+    marginBottom: 8
+  }}
+>
+  {new Date(record.service_date + "T00:00:00").toLocaleDateString(
+    "en-IE",
+    {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    }
+  )}
+</p>
+
+            {record.mileage && (
+  <p>
+    <strong>Mileage:</strong> {record.mileage.toLocaleString()} km
+  </p>
+)}
+
+            <p>
+              <strong>Description:</strong><br />
+              {record.description}
+            </p>
+
+            {record.advisories && (
+              <p>
+                <strong>Advisories:</strong><br />
+                {record.advisories}
+              </p>
+            )}
+          </div>
+        );
+      })
+    )}
+  </div>
+)}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
-                  <Btn small onClick={function() { startEdit(r); }}>Edit</Btn>
-                  <Btn small variant="ghost" onClick={function() { handleDelete(r); }} style={{ color: "#e8472a", borderColor: "#e8472a50" }}>Remove</Btn>
+                  <Btn
+  small
+  onClick={function() {
+    startEdit(r);
+  }}
+>
+  Edit
+</Btn>
+
+<Btn
+  small
+  onClick={function() {
+    if (historyReg === r) {
+      setHistoryReg(null);
+      setServiceHistory([]);
+    } else {
+      loadHistory(r);
+    }
+  }}
+>
+  {historyReg === r ? "Hide History" : "History"}
+</Btn>
+
+<Btn
+  small
+  variant="ghost"
+  style={{ color: "#e8472a", borderColor: "#e8472a50" }}
+  onClick={function() {
+    handleDelete(r);
+  }}
+>
+  Remove
+</Btn>
                 </div>
               </Card>
             );
-          })}
+                   })}
         </div>
-      )}
+      </>
+)}
 
       {view === "add" && (
         <Card>
@@ -2353,6 +2575,19 @@ const sorted = bookings.slice().sort(function(a, b) {
       </Btn>
     </>
   ) : (
+  <>
+    <Btn
+      small
+      onClick={function() {
+        setServiceBooking(b);
+        setServiceMileage("");
+        setServiceDescription("");
+        setServiceAdvisories("");
+      }}
+    >
+      Enter Service Record
+    </Btn>
+
     <Btn
       small
       onClick={function() {
@@ -2362,18 +2597,68 @@ const sorted = bookings.slice().sort(function(a, b) {
     >
       Change Date
     </Btn>
-  )}
+  </>
+)}
+{serviceBooking?.id === b.id ? (  <>
+    <Input
+      label="Mileage"
+      value={serviceMileage}
+      onChange={function(e) {
+        setServiceMileage(e.target.value);
+      }}
+      placeholder="e.g. 100245"
+    />
 
-  <Btn
-    small
-    variant="ghost"
-    style={{ color: "#e8472a", borderColor: "#e8472a50" }}
-    onClick={function() {
-      handleDeleteBooking(b.id);
-    }}
-  >
-    Delete
-  </Btn>
+    <Input
+      label="Description"
+      value={serviceDescription}
+      onChange={function(e) {
+        setServiceDescription(e.target.value);
+      }}
+      placeholder="e.g. Oil & filter changed"
+    />
+
+    <Input
+      label="Advisories"
+      value={serviceAdvisories}
+      onChange={function(e) {
+        setServiceAdvisories(e.target.value);
+      }}
+      placeholder="e.g. Front pads due next service"
+    />
+
+<Btn
+  small
+  onClick={handleSaveServiceRecord}
+>
+  Save Record
+</Btn>
+
+    <Btn
+      small
+      variant="ghost"
+      onClick={function() {
+        setServiceBooking(null);
+      }}
+    >
+      Cancel
+    </Btn>
+   </>
+) : (
+  <>
+
+    <Btn
+      small
+      variant="ghost"
+      style={{ color: "#e8472a", borderColor: "#e8472a50" }}
+      onClick={function() {
+        handleDeleteBooking(b.id);
+      }}
+    >
+      Delete
+    </Btn>
+  </>
+)}
 
 </div>
 </Card>
@@ -2821,7 +3106,6 @@ useEffect(() => {
         vin: v.vin_number || "",
         nctExpiry: v.nct_expiry || "",
         notes: v.notes || "",
-        history: [],
         services: ALL_SERVICES
       };
     });
