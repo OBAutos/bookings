@@ -1872,9 +1872,14 @@ const [serviceMileage, setServiceMileage] = useState("");
 const [serviceDescription, setServiceDescription] = useState("");
 const [serviceAdvisories, setServiceAdvisories] = useState("");
 const [serviceBooking, setServiceBooking] = useState(null);
+const [serviceVehicle, setServiceVehicle] = useState(null);
+const [serviceDate, setServiceDate] = useState(
+  new Date().toISOString().split("T")[0]
+);
 const [historyReg, setHistoryReg] = useState(null);
 const [serviceHistory, setServiceHistory] = useState([]);
 const [vehicleSearch, setVehicleSearch] = useState("");
+
 
 async function loadHistory(registration) {
   const { data, error } = await supabase
@@ -2102,7 +2107,58 @@ setBookings(function(prev) {
 });
   showSuccess("Service record saved.");
 }
+async function handleSaveVehicleServiceRecord() {
+  const { error } = await supabase
+    .from("service_records")
+    .insert({
+      registration: serviceVehicle,
+      service_date: serviceDate,
+      mileage: serviceMileage
+        ? parseInt(serviceMileage, 10)
+        : null,
+      description: serviceDescription,
+      advisories: serviceAdvisories
+    });
 
+  if (error) {
+    console.error(error);
+    alert("Failed to save service record.");
+    return;
+  }
+
+  showSuccess("Service record saved.");
+
+  setServiceVehicle(null);
+  setServiceMileage("");
+  setServiceDescription("");
+  setServiceAdvisories("");
+
+  if (historyReg === serviceVehicle) {
+    loadHistory(serviceVehicle);
+  }
+}
+async function handleDeleteServiceRecord(id) {
+  if (!confirm("Delete this service record?")) return;
+
+  const { error } = await supabase
+    .from("service_records")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error(error);
+    alert("Failed to delete service record.");
+    return;
+  }
+
+  setServiceHistory(function(prev) {
+    return prev.filter(function(record) {
+      return record.id !== id;
+    });
+  });
+
+  showSuccess("Service record deleted.");
+}
 function Tab(props) {
   const active = view === props.id;
   return (
@@ -2312,13 +2368,88 @@ function Tab(props) {
                 {record.advisories}
               </p>
             )}
+            <Btn
+  small
+  variant="ghost"
+  style={{
+    marginTop: 10,
+    color: "#e8472a",
+    borderColor: "#e8472a50"
+  }}
+  onClick={function() {
+    handleDeleteServiceRecord(record.id);
+  }}
+>
+  Delete Record
+</Btn>
           </div>
         );
       })
     )}
   </div>
 )}
+
+{serviceVehicle === r && (
+  <div
+    style={{
+      marginTop: 16,
+      padding: 12,
+      background: "#f8f9fa",
+      borderRadius: 8,
+      border: "1px solid " + C.border
+    }}
+  >
+    <DateInput
+      label="Service Date"
+      value={serviceDate}
+      onChange={function(e) {
+        setServiceDate(e.target.value);
+      }}
+    />
+
+    <Input
+      label="Mileage"
+      value={serviceMileage}
+      onChange={function(e) {
+        setServiceMileage(e.target.value);
+      }}
+    />
+
+    <Input
+      label="Description"
+      value={serviceDescription}
+      onChange={function(e) {
+        setServiceDescription(e.target.value);
+      }}
+    />
+
+    <Input
+      label="Advisories"
+      value={serviceAdvisories}
+      onChange={function(e) {
+        setServiceAdvisories(e.target.value);
+      }}
+    />
+
+    <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+      <Btn onClick={handleSaveVehicleServiceRecord}>
+        Save Record
+      </Btn>
+
+      <Btn
+        variant="ghost"
+        onClick={function() {
+          setServiceVehicle(null);
+        }}
+      >
+        Cancel
+      </Btn>
+    </div>
+  </div>
+)}
+
                 </div>
+
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
                   <Btn
   small
@@ -2327,6 +2458,20 @@ function Tab(props) {
   }}
 >
   Edit
+</Btn>
+<Btn
+  small
+  onClick={function() {
+    setServiceVehicle(r);
+    setServiceBooking(null);
+
+    setServiceDate(new Date().toISOString().split("T")[0]);
+    setServiceMileage("");
+    setServiceDescription("");
+    setServiceAdvisories("");
+  }}
+>
+  Add Service Record
 </Btn>
 
 <Btn
