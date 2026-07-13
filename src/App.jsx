@@ -1849,8 +1849,14 @@ function NctStatus({ nctExpiry }) {
 // PART_TYPES removed - use PART_TYPES instead
 
 
-function AdminPanel({ cars, setCars, bookings, setBookings, lastLoginTime }) {
-  const [view, setView] = useState("vehicles");
+function AdminPanel({
+  cars,
+  setCars,
+  bookings,
+  setBookings,
+  lastLoginTime,
+  loadVehicles
+}) {  const [view, setView] = useState("vehicles");
   const [success, setSuccess] = useState("");
   const [editReg, setEditReg] = useState(null);
   const [nctFilter, setNctFilter] = useState(1);
@@ -1918,15 +1924,52 @@ function clearForm() {
     setTimeout(function() { setSuccess(""); }, 3000);
   }
 
-  function handleAdd() { 
-    const clean = fReg.trim().replace(/\s/g, "").toUpperCase();
-    if (!clean || !fMake || !fModel ||  fServices.length === 0) return;
-    setCars(function(prev) { return Object.assign({}, prev, { [clean]: { make: fMake, model: fModel, owner: fOwner, mobile: fMobile, email: fEmail, nctExpiry: fNct, notes: fNotes, services: fServices } }); });
-    clearForm();
-    showSuccess("Vehicle " + clean + " added.");
-    setView("vehicles");
+async function handleAdd() {
+  const clean = fReg.trim().replace(/\s/g, "").toUpperCase();
+
+  if (!clean || !fMake || !fModel || fServices.length === 0) return;
+
+  const { error } = await supabase
+    .from("vehicles")
+    .insert({
+      registration: clean,
+      owner_name: fOwner,
+      make: fMake,
+      model: fModel,
+      vin_number: fVin,
+      mobile: fMobile,
+      email: fEmail,
+      nct_expiry: fNct || null,
+      notes: fNotes
+    });
+
+  if (error) {
+    console.error(error);
+    alert("Failed to add vehicle.");
+    return;
   }
 
+  setCars(function(prev) {
+    return Object.assign({}, prev, {
+      [clean]: {
+        make: fMake,
+        model: fModel,
+        owner: fOwner,
+        mobile: fMobile,
+        email: fEmail,
+        vin: fVin,
+        nctExpiry: fNct,
+        notes: fNotes,
+        services: fServices,
+        history: []
+      }
+    });
+  });
+
+  clearForm();
+  showSuccess("Vehicle " + clean + " added.");
+  setView("vehicles");
+}
   function startEdit(r) {
     const c = cars[r];
     setEditReg(r);
@@ -3226,40 +3269,42 @@ export default function App() {
   const [tab, setTab] = useState("customer");
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [adminLoginTime, setAdminLoginTime] = useState(null);
-useEffect(() => {
+
   async function loadVehicles() {
-    const { data, error } = await supabase
-      .from("vehicles")
-      .select("*");
+  const { data, error } = await supabase
+    .from("vehicles")
+    .select("*");
 
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    const loadedCars = {};
-
-    data.forEach(function(v) {
-      loadedCars[v.registration] = {
-        make: v.make,
-        model: v.model,
-        year: null,
-        colour: "",
-        owner: v.owner_name,
-        mobile: v.mobile,
-        email: v.email,
-        vin: v.vin_number || "",
-        nctExpiry: v.nct_expiry || "",
-        notes: v.notes || "",
-        services: ALL_SERVICES
-      };
-    });
-
-    setCars(loadedCars);
-
-    console.log("Loaded vehicles:", loadedCars);
+  if (error) {
+    console.error(error);
+    return;
   }
- async function loadBookings() {
+
+  const loadedCars = {};
+
+  data.forEach(function(v) {
+    loadedCars[v.registration] = {
+      make: v.make,
+      model: v.model,
+      year: null,
+      colour: "",
+      owner: v.owner_name,
+      mobile: v.mobile,
+      email: v.email,
+      vin: v.vin_number || "",
+      nctExpiry: v.nct_expiry || "",
+      notes: v.notes || "",
+      services: ALL_SERVICES
+    };
+  });
+
+  setCars(loadedCars);
+
+  console.log("Loaded vehicles:", loadedCars);
+}
+
+useEffect(() => {
+  async function loadBookings() {
     const { data, error } = await supabase
       .from("bookings")
       .select("*");
@@ -3270,15 +3315,11 @@ useEffect(() => {
     }
 
     setBookings(data);
-
     console.log("Loaded bookings:", data);
   }
 
-  // <<< THEN CHANGE THIS >>>
-
   loadVehicles();
   loadBookings();
-
 }, []);
 
 
@@ -3320,7 +3361,8 @@ useEffect(() => {
   bookings={bookings}
   setBookings={setBookings}
   lastLoginTime={adminLoginTime}
-/>            : <AdminLogin onSuccess={function() { setAdminAuthed(true); setAdminLoginTime(Date.now()); }} />
+  loadVehicles={loadVehicles}
+/>           : <AdminLogin onSuccess={function() { setAdminAuthed(true); setAdminLoginTime(Date.now()); }} />
         }
       </main>
     </div>
