@@ -1371,7 +1371,45 @@ function toggleService(service) {
   const [regMobile, setRegMobile] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regError, setRegError] = useState("");
+function addToCalendar() {
+  const title = "OB Autos - " + chosenServices.join(", ");
 
+  const description =
+`Vehicle: ${carData.make} ${carData.model}
+Registration: ${carData.reg}
+
+Services:
+${chosenServices.join(", ")}
+
+Customer: ${name}`;
+
+  const start = chosenDate.replace(/-/g, "");
+  const endDate = new Date(chosenDate);
+  endDate.setDate(endDate.getDate() + 1);
+  const end = endDate.toISOString().slice(0, 10).replace(/-/g, "");
+
+  const ics =
+`BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+SUMMARY:${title}
+DESCRIPTION:${description.replace(/\n/g, "\\n")}
+LOCATION:OB Autos
+DTSTART;VALUE=DATE:${start}
+DTEND;VALUE=DATE:${end}
+END:VEVENT
+END:VCALENDAR`;
+
+  const blob = new Blob([ics], { type: "text/calendar" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "OB-Autos-Booking.ics";
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
 function resetAll() {
   setStep("lookup");
   setName("");
@@ -1497,8 +1535,10 @@ setStep("done");
             );
           })}
         </Card>
-        <Btn onClick={resetAll}>Book Another</Btn>
-      </div>
+<div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
+  <Btn onClick={addToCalendar}>📅 Add to Calendar</Btn>
+  <Btn variant="ghost" onClick={resetAll}>Book Another</Btn>
+</div>      </div>
     );
   }
 
@@ -1873,6 +1913,7 @@ setFNotes(c.notes || "");
    const { data, error } = await supabase
   .from("vehicles")
   .update({
+    registration: fReg,
     owner_name: fOwner,
     make: fMake,
     model: fModel,
@@ -1892,8 +1933,24 @@ if (error) {
   alert("Failed to update vehicle.");
   return;
 }
-    setCars(function(prev) { return Object.assign({}, prev, { [editReg]: Object.assign({}, prev[editReg], { make: fMake, model: fModel, owner: fOwner, mobile: fMobile, email: fEmail, nctExpiry: fNct, notes: fNotes, services: fServices }) }); });
-    clearForm(); setEditReg(null);
+setCars(function(prev) {
+  const updated = Object.assign({}, prev);
+
+  delete updated[editReg];
+
+  updated[fReg] = Object.assign({}, prev[editReg], {
+    make: fMake,
+    model: fModel,
+    owner: fOwner,
+    mobile: fMobile,
+    email: fEmail,
+    nctExpiry: fNct,
+    notes: fNotes,
+    services: fServices
+  });
+
+  return updated;
+});    clearForm(); setEditReg(null);
     showSuccess("Vehicle " + editReg + " updated.");
     setView("vehicles");
   }
@@ -1915,8 +1972,13 @@ if (error) {
 
   const VehicleForm = (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {editReg ? null : <Input label="Registration *" value={fReg} onChange={function(e) { setFReg(e.target.value); }} placeholder="e.g. 262D12345" uppercase />}
-      {editReg ? null : <div />}
+<Input
+  label="Registration *"
+  value={fReg}
+  onChange={function(e) { setFReg(e.target.value.toUpperCase()); }}
+  placeholder="e.g. 262D12345"
+  uppercase
+/>
       <Input label="Make *" value={fMake} onChange={function(e) { setFMake(e.target.value); }} placeholder="e.g. Ford" />
       <Input label="Model *" value={fModel} onChange={function(e) { setFModel(e.target.value); }} placeholder="e.g. Focus" />
       <Input label="Owner Name" value={fOwner} onChange={function(e) { setFOwner(e.target.value); }} placeholder="e.g. John Smith" />
@@ -1969,8 +2031,17 @@ if (error) {
                         <span style={{ fontWeight: 700, fontSize: 14 }}>{b.name}</span>
                         <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: C.accent + "15", color: C.accent }}>{b.reg}</span>
                       </div>
-                      <span style={{ fontSize: 13, color: C.muted }}>{b.service}</span>
-                      <span style={{ fontSize: 13, color: C.muted }}> - {b.car}</span>
+<span style={{ fontSize: 13, color: C.muted }}>
+  {b.service} - {b.car}
+</span>
+
+<div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 2 }}>
+  <div style={{ fontSize: 12, color: C.muted }}>
+📞 {JSON.stringify(b)}  </div>
+  <div style={{ fontSize: 12, color: C.muted }}>
+    ✉️ {cars[b.reg]?.email || "-"}
+  </div>
+</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <p style={{ fontWeight: 700, color: "#b7770d", fontSize: 13 }}>{new Date(b.date + "T00:00:00").toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "short" })}</p>
@@ -2171,7 +2242,7 @@ const sorted = bookings.slice().sort(function(a, b) {
                         {dayBookings.map(function(b) {
                           return (
                             <Card key={b.id} style={{ display: "flex", gap: 14, alignItems: "center", padding: 16 }}>
-  <div style={{ flex: 1 }}>
+<div style={{ flex: 1, textAlign: "left" }}>
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
       <span style={{ fontWeight: 700, fontSize: 15 }}>
         {cars[b.registration]?.owner || "Unknown Customer"}
@@ -2182,6 +2253,14 @@ const sorted = bookings.slice().sort(function(a, b) {
       <Badge text={b.service} color={C.muted} />
     </div>
 
+
+<div style={{ fontSize: 13, color: C.muted }}>
+  📞 {cars[b.registration]?.mobile || "-"}
+</div>
+
+<div style={{ fontSize: 13, color: C.muted, marginBottom: 8 }}>
+  ✉️ {cars[b.registration]?.email || "-"}
+</div>
     <p style={{ fontSize: 12, color: C.muted }}>
       {(cars[b.registration]?.make || "") + " " + (cars[b.registration]?.model || "")}
     </p>
@@ -2192,8 +2271,6 @@ const sorted = bookings.slice().sort(function(a, b) {
       </p>
     )}
   </div>
-
-  <Badge text="POQ" color={C.green} />
 </Card>
                           );
                         })}
