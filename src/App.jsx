@@ -2367,7 +2367,7 @@ function Tab(props) {
                 <strong>Advisories:</strong><br />
                 {record.advisories}
               </p>
-            )}
+            )}  
             <Btn
   small
   variant="ghost"
