@@ -1879,6 +1879,7 @@ const [serviceDescription, setServiceDescription] = useState("");
 const [serviceAdvisories, setServiceAdvisories] = useState("");
 const [serviceBooking, setServiceBooking] = useState(null);
 const [serviceVehicle, setServiceVehicle] = useState(null);
+const [editingRecord, setEditingRecord] = useState(null);
 const [serviceDate, setServiceDate] = useState(
   new Date().toISOString().split("T")[0]
 );
@@ -2202,6 +2203,39 @@ async function handleDeleteServiceRecord(id) {
 
   showSuccess("Service record deleted.");
 }
+
+async function handleUpdateServiceRecord() {
+  console.log("Updating record:", editingRecord);
+ const { data, error } = await supabase
+  .from("service_records")
+  .update({
+    service_date: serviceDate,
+    mileage: serviceMileage
+      ? parseInt(serviceMileage, 10)
+      : null,
+    description: serviceDescription,
+    advisories: serviceAdvisories
+  })
+  .eq("id", editingRecord.id)
+  .select();
+
+console.log("Updated rows:", data);
+console.log("Error:", error);
+  if (error) {
+    console.error(error);
+    alert("Failed to update service record.");
+    return;
+  }
+
+  showSuccess("Service record updated.");
+
+  setEditingRecord(null);
+
+  if (historyReg) {
+    loadHistory(historyReg);
+  }
+}
+
 function Tab(props) {
   const active = view === props.id;
   return (
@@ -2411,20 +2445,97 @@ function Tab(props) {
                 {record.advisories}
               </p>
             )}  
-            <Btn
-  small
-  variant="ghost"
-  style={{
-    marginTop: 10,
-    color: "#e8472a",
-    borderColor: "#e8472a50"
-  }}
-  onClick={function() {
-    handleDeleteServiceRecord(record.id);
-  }}
->
-  Delete Record
-</Btn>
+          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+
+  <Btn
+    small
+    onClick={function() {
+      setEditingRecord(record);
+
+      setServiceDate(record.service_date);
+      setServiceMileage(record.mileage || "");
+      setServiceDescription(record.description || "");
+      setServiceAdvisories(record.advisories || "");
+    }}
+  >
+    Edit
+  </Btn>
+
+  <Btn
+    small
+    variant="ghost"
+    style={{
+      color: "#e8472a",
+      borderColor: "#e8472a50"
+    }}
+    onClick={function() {
+      handleDeleteServiceRecord(record.id);
+    }}
+  >
+    Delete
+  </Btn>
+{editingRecord?.id === record.id && (
+  <div
+    style={{
+      marginTop: 12,
+      padding: 12,
+      border: "1px solid " + C.border,
+      borderRadius: 8
+    }}
+  >
+
+    <DateInput
+      label="Service Date"
+      value={serviceDate}
+      onChange={function(e) {
+        setServiceDate(e.target.value);
+      }}
+    />
+
+    <Input
+      label="Mileage"
+      value={serviceMileage}
+      onChange={function(e) {
+        setServiceMileage(e.target.value);
+      }}
+    />
+
+    <Input
+      label="Description"
+      value={serviceDescription}
+      onChange={function(e) {
+        setServiceDescription(e.target.value);
+      }}
+    />
+
+    <Input
+      label="Advisories"
+      value={serviceAdvisories}
+      onChange={function(e) {
+        setServiceAdvisories(e.target.value);
+      }}
+    />
+
+    <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+
+      <Btn onClick={handleUpdateServiceRecord}>
+        Save Changes
+      </Btn>
+
+      <Btn
+        variant="ghost"
+        onClick={function() {
+          setEditingRecord(null);
+        }}
+      >
+        Cancel
+      </Btn>
+
+    </div>
+
+  </div>
+)}
+</div>
           </div>
         );
       })
