@@ -1860,6 +1860,8 @@ function AdminPanel({
   const [success, setSuccess] = useState("");
   const [editReg, setEditReg] = useState(null);
   const [nctFilter, setNctFilter] = useState(1);
+  const [serviceDueFilter, setServiceDueFilter] = useState("this");
+const [dueServices, setDueServices] = useState([]);
   const [fMake, setFMake] = useState("");
   const [fModel, setFModel] = useState("");
   const [fOwner, setFOwner] = useState("");
@@ -1903,7 +1905,44 @@ async function loadHistory(registration) {
   setHistoryReg(registration);
   setServiceHistory(data);
 }
+async function loadDueServices(filter) {
+  const { data, error } = await supabase
+    .from("service_records")
+    .select("*")
+    .order("service_date", { ascending: false });
 
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  const latest = {};
+
+  data.forEach(function(record) {
+    if (!latest[record.registration]) {
+      latest[record.registration] = record;
+    }
+  });
+
+  const today = new Date();
+
+  let targetMonth = today.getMonth();
+
+  if (filter === "next") {
+    targetMonth = (targetMonth + 1) % 12;
+  }
+
+  const due = Object.values(latest).filter(function(record) {
+    const serviceDate = new Date(record.service_date);
+
+    return (
+      serviceDate.getMonth() === targetMonth &&
+      serviceDate.getFullYear() === today.getFullYear() - 1
+    );
+  });
+
+  setDueServices(due);
+}
 function clearForm() {
   setFMake("");
   setFModel("");
@@ -2240,13 +2279,18 @@ function Tab(props) {
   const active = view === props.id;
   return (
     <button
-      onClick={function() {
-        setView(props.id);
-        if (props.id !== "edit") {
-          clearForm();
-          setEditReg(null);
-        }
-      }}
+onClick={function() {
+  setView(props.id);
+
+  if (props.id === "serviceDue") {
+    loadDueServices(serviceDueFilter);
+  }
+
+  if (props.id !== "edit") {
+    clearForm();
+    setEditReg(null);
+  }
+}}
       style={{
         padding: "9px 18px",
         borderRadius: 8,
@@ -2292,16 +2336,53 @@ function Tab(props) {
 
 
   return (
-    <div style={{ maxWidth: 760, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ fontFamily: "Barlow Condensed", fontSize: 28 }}>Admin Dashboard</h2>
-        <div style={{ display: "flex", gap: 4, background: C.card, padding: 4, borderRadius: 10 }}>
-          <Tab id="vehicles" label={"Vehicles (" + Object.keys(cars).length + ")"} />
-          <Tab id="add" label="+ Add Vehicle" />
-          <Tab id="nct" label="NCT Check" />
-          <Tab id="bookings" label={"Bookings (" + bookings.length + ")" + (lastLoginTime && bookings.filter(function(b){return b.id > lastLoginTime;}).length > 0 ? " !" : "")} />
-        </div>
-      </div>
+<div style={{ maxWidth: 760, margin: "0 auto" }}>
+
+  <div style={{ marginBottom: 24 }}>
+
+    <h2
+      style={{
+        fontFamily: "Barlow Condensed",
+        fontSize: 28,
+        marginBottom: 16
+      }}
+    >
+      Admin Dashboard
+    </h2>
+
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        gap: 4,
+        background: C.card,
+        padding: 4,
+        borderRadius: 10,
+        width: "fit-content",
+        margin: "0 auto"
+      }}
+    >
+      <Tab id="vehicles" label={"Vehicles (" + Object.keys(cars).length + ")"} />
+      <Tab id="add" label="+ Add Vehicle" />
+      <Tab id="nct" label="NCT Check" />
+      <Tab
+        id="bookings"
+        label={
+          "Bookings (" +
+          bookings.length +
+          ")" +
+          (lastLoginTime &&
+          bookings.filter(function(b) {
+            return b.id > lastLoginTime;
+          }).length > 0
+            ? " !"
+            : "")
+        }
+      />
+      <Tab id="serviceDue" label="Service Due" />
+    </div>
+
+  </div>
 
       {success && <div style={{ background: C.green + "20", color: C.green, padding: "10px 16px", borderRadius: 8, marginBottom: 16, fontSize: 13, fontWeight: 600 }}>{success}</div>}
 
@@ -2351,23 +2432,32 @@ function Tab(props) {
 {view === "vehicles" && (
   <>
     <Input
-      label="Search Registration"
+      label="Search Vehicle or Customer"
       value={vehicleSearch}
       onChange={function(e) {
         setVehicleSearch(e.target.value.toUpperCase());
       }}
-      placeholder="e.g. 251KE4131"
+      placeholder="Reg, Customer Name, Make or Model"
     />
 
     <div style={{ height: 16 }} />
 
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 {Object.entries(cars)
-  .filter(function(entry) {
-    return entry[0]
-      .toUpperCase()
-      .includes(vehicleSearch.toUpperCase());
-  })
+ .filter(function(entry) {
+  const reg = entry[0].toUpperCase();
+  const owner = (entry[1].owner || "").toUpperCase();
+  const make = (entry[1].make || "").toUpperCase();
+  const model = (entry[1].model || "").toUpperCase();
+  const search = vehicleSearch.toUpperCase();
+
+  return (
+    reg.includes(search) ||
+    owner.includes(search) ||
+    make.includes(search) ||
+    model.includes(search)
+  );
+})
   .map(function(entry) {            const r = entry[0];
             const c = entry[1];
             return (
@@ -2782,7 +2872,99 @@ function Tab(props) {
           })()}
         </div>
       )}
+{view === "serviceDue" && (
+  <Card>
 
+    <h3 style={{ fontFamily: "Barlow Condensed", fontSize: 24, marginBottom: 20 }}>
+      Service Due
+    </h3>
+
+    <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+
+      <Btn
+        small
+        onClick={function() {
+          setServiceDueFilter("this");
+          loadDueServices("this");
+        }}
+      >
+        This Month
+      </Btn>
+
+      <Btn
+        small
+        onClick={function() {
+          setServiceDueFilter("next");
+          loadDueServices("next");
+        }}
+      >
+        Next Month
+      </Btn>
+
+    </div>
+
+   {dueServices.length === 0 ? (
+  <p style={{ color: C.muted }}>
+    No vehicles due for service.
+  </p>
+) : (
+  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    {dueServices.map(function(record) {
+      const car = cars[record.registration];
+
+      return (
+        <Card key={record.id}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+
+            <div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span
+                  style={{
+                    fontFamily: "Barlow Condensed",
+                    fontSize: 20,
+                    fontWeight: 700
+                  }}
+                >
+                  {car?.make} {car?.model}
+                </span>
+
+                <Badge
+                  text={record.registration}
+                  color={C.accent}
+                />
+              </div>
+
+              <p style={{ color: C.muted }}>
+                Owner: {car?.owner || "-"}
+              </p>
+
+              <p style={{ color: C.muted }}>
+                📞 {car?.mobile || "-"}
+              </p>
+
+              <p style={{ color: C.muted }}>
+                Last serviced:{" "}
+                {new Date(
+                  record.service_date + "T00:00:00"
+                ).toLocaleDateString("en-IE")}
+              </p>
+
+              {record.mileage && (
+                <p style={{ color: C.muted }}>
+                  Mileage: {record.mileage.toLocaleString()} km
+                </p>
+              )}
+            </div>
+
+          </div>
+        </Card>
+      );
+    })}
+  </div>
+)}
+
+  </Card>
+)}
       {view === "bookings" && (
         <div>
           {(function() {
