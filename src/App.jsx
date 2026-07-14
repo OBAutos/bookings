@@ -2423,7 +2423,7 @@ onClick={function() {
                       {b.notes && <p style={{ fontSize: 11, color: C.muted }}>{b.notes}</p>}
                     </div>
                   </div>
-                );
+                ); 
               })}
             </div>
           </div>
