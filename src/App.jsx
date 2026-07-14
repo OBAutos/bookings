@@ -2450,7 +2450,7 @@ onClick={function() {
   const make = (entry[1].make || "").toUpperCase();
   const model = (entry[1].model || "").toUpperCase();
   const search = vehicleSearch.toUpperCase();
-
+ 
   return (
     reg.includes(search) ||
     owner.includes(search) ||
