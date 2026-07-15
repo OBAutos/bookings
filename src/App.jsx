@@ -1508,7 +1508,7 @@ setStep("done");
 
   if (step === "done") {
     return (
-      <div style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", textAlign: "center" }}>
         <div style={{ fontSize: 64, marginBottom: 16 }}>&#10003;</div>
         <h2 style={{ fontFamily: "Barlow Condensed", fontSize: 32, marginBottom: 8 }}>Booking Confirmed!</h2>
         <p style={{ color: C.muted, marginBottom: 24 }}>
@@ -3522,7 +3522,7 @@ function AdminLogin({ onSuccess }) {
 
   return (
     <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <Card style={{ width: "100%", maxWidth: 400 }}>
+      <Card style={{ width: "100%", maxWidth: 1200 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 36 }}>&#128272;</div>
           <h2 style={{ fontFamily: "Barlow Condensed", fontSize: 26, marginTop: 8, color: C.accent }}>Admin Login</h2>
