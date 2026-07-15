@@ -2294,13 +2294,12 @@ function emailReminder(registration, vehicle) {
 
 Our records show that your ${vehicle.make} ${vehicle.model} (${registration}) is now due for its annual service.
 
-If you would like to arrange a booking, you can now do it online or please contact us.
+If you would like to arrange a booking, you can now do it online or give us a call.
 www.obautos.com/booking
-Phone: ${GARAGE.mobile}
+
 Email: ${GARAGE.email}
 
 Kind regards,
-
 ${GARAGE.name}
 ${GARAGE.website}`;
 
@@ -2327,14 +2326,12 @@ function whatsappReminder(registration, vehicle) {
 
 Our records show that your ${vehicle.make} ${vehicle.model} (${registration}) is now due for its annual service.
 
-If you would like to arrange a booking, you can now do it online or please contact us.
+If you would like to arrange a booking, you can now do it online or give us a call.
 www.obautos.com/booking
 
- ${GARAGE.mobile}
  ${GARAGE.email}
 
 Kind regards,
-
 ${GARAGE.name}
 ${GARAGE.website}`;
 
