@@ -2726,8 +2726,15 @@ onClick={function() {
   .map(function(entry) {            const r = entry[0];
             const c = entry[1];
             return (
-              <Card key={r} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                <div style={{ flex: 1 }}>
+<Card
+  key={r}
+  style={{
+    display: "flex",
+    flexDirection: window.innerWidth < 768 ? "column" : "row",
+    gap: 16,
+    alignItems: "flex-start"
+  }}
+>                <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
                     <h3 style={{ fontFamily: "Barlow Condensed", fontSize: 20 }}>{c.make + " " + c.model}</h3>
                     <Badge text={r} color={C.accent} />
