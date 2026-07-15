@@ -3644,8 +3644,16 @@ useEffect(() => {
           </div>
         </div>
       </header>
-      <main style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px", background: "#ffffff", minHeight: "calc(100vh - 64px)" }}>
-        {tab === "customer"
+<main
+  style={{
+    width: "100%",
+    maxWidth: "1400px",
+    margin: "0 auto",
+    padding: "40px 24px",
+    background: "#ffffff",
+    minHeight: "calc(100vh - 64px)"
+  }}
+>        {tab === "customer"
           ? <CustomerPortal cars={cars} setCars={setCars} slots={slots} setSlots={setSlots} bookings={bookings} setBookings={setBookings} />
           : adminAuthed
 ?<AdminPanel
