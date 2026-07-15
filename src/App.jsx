@@ -2281,6 +2281,71 @@ console.log("Error:", error);
     loadHistory(historyReg);
   }
 }
+function emailReminder(registration, vehicle) {
+    if (!vehicle.email) {
+    alert("This customer does not have an email address.");
+    return;
+  }
+
+  const subject = "OB Autos - Annual Service Reminder";
+
+  const body =
+`Hi ${vehicle.owner || "Customer"},
+
+Our records show that your ${vehicle.make} ${vehicle.model} (${registration}) is now due for its annual service.
+
+If you would like to arrange a booking, you can now do it online or please contact us.
+www.obautos.com/booking
+Phone: ${GARAGE.mobile}
+Email: ${GARAGE.email}
+
+Kind regards,
+
+${GARAGE.name}
+${GARAGE.website}`;
+
+  const url =
+    "https://mail.google.com/mail/?view=cm&fs=1" +
+    "&to=" + encodeURIComponent(vehicle.email) +
+    "&su=" + encodeURIComponent(subject) +
+    "&body=" + encodeURIComponent(body);
+
+  window.open(url, "_blank");
+}
+function whatsappReminder(registration, vehicle) {
+  if (!vehicle.mobile) {
+    alert("This customer does not have a mobile number.");
+    return;
+  }
+
+  const phone = vehicle.mobile
+    .replace(/\D/g, "")
+    .replace(/^0/, "353");
+
+  const message =
+`Hi ${vehicle.owner || "Customer"},
+
+Our records show that your ${vehicle.make} ${vehicle.model} (${registration}) is now due for its annual service.
+
+If you would like to arrange a booking, you can now do it online or please contact us.
+www.obautos.com/booking
+
+ ${GARAGE.mobile}
+ ${GARAGE.email}
+
+Kind regards,
+
+${GARAGE.name}
+${GARAGE.website}`;
+
+  window.open(
+    "https://wa.me/" +
+      phone +
+      "?text=" +
+      encodeURIComponent(message),
+    "_blank"
+  );
+}
 function printServiceHistory() {
   const vehicle = cars[historyReg];
 
@@ -3140,6 +3205,25 @@ onClick={function() {
                   Mileage: {record.mileage.toLocaleString()} km
                 </p>
               )}
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+
+  <Btn
+    small
+    onClick={function() {
+      emailReminder(record.registration, car);
+    }}
+  >
+    📧 Email Reminder
+  </Btn>
+<Btn
+  small
+  onClick={function() {
+    whatsappReminder(record.registration, car);
+  }}
+>
+  💬 WhatsApp
+</Btn>
+</div>
             </div>
 
           </div>
