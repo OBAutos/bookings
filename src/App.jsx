@@ -2336,7 +2336,7 @@ onClick={function() {
 
 
   return (
-<div style={{ maxWidth: 760, margin: "0 auto" }}>
+<div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
   <div style={{ marginBottom: 24 }}>
 
