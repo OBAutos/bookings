@@ -1863,7 +1863,7 @@ function AdminPanel({
   setBookings,
   lastLoginTime,
   loadVehicles
-}) {  const [view, setView] = useState("vehicles");
+}) {  const [view, setView] = useState("dashboard");
   const [success, setSuccess] = useState("");
   const [editReg, setEditReg] = useState(null);
   const [nctFilter, setNctFilter] = useState(1);
@@ -1895,8 +1895,35 @@ const [serviceDate, setServiceDate] = useState(
 const [historyReg, setHistoryReg] = useState(null);
 const [serviceHistory, setServiceHistory] = useState([]);
 const [vehicleSearch, setVehicleSearch] = useState("");
+const today = new Date();
 
+const startOfWeek = new Date(today);
+startOfWeek.setDate(today.getDate() - today.getDay() + 1);
+startOfWeek.setHours(0, 0, 0, 0);
 
+const endOfWeek = new Date(startOfWeek);
+endOfWeek.setDate(startOfWeek.getDate() + 6);
+endOfWeek.setHours(23, 59, 59, 999);
+
+const bookingsThisWeek = bookings.filter(function(booking) {
+  const bookingDate = new Date(booking.booking_date + "T00:00:00");
+
+  return bookingDate >= startOfWeek &&
+         bookingDate <= endOfWeek;
+});
+const groupedBookings = {};
+
+bookingsThisWeek
+  .sort(function(a, b) {
+    return new Date(a.booking_date) - new Date(b.booking_date);
+  })
+  .forEach(function(booking) {
+    if (!groupedBookings[booking.booking_date]) {
+      groupedBookings[booking.booking_date] = [];
+    }
+
+    groupedBookings[booking.booking_date].push(booking);
+  });
 async function loadHistory(registration) {
   const { data, error } = await supabase
     .from("service_records")
@@ -2294,13 +2321,14 @@ function emailReminder(registration, vehicle) {
 
 Our records show that your ${vehicle.make} ${vehicle.model} (${registration}) is now due for its annual service.
 
-If you would like to arrange a booking, you can now do it online or give us a call.
-www.obautos.com/booking
+If you would like to arrange a booking, you can now do it online or please contact us.
+https://www.obautos.com/booking
 
-Email: ${GARAGE.email}
+
 
 Kind regards,
 ${GARAGE.name}
+${GARAGE.email}
 ${GARAGE.website}`;
 
   const url =
@@ -2327,12 +2355,11 @@ function whatsappReminder(registration, vehicle) {
 Our records show that your ${vehicle.make} ${vehicle.model} (${registration}) is now due for its annual service.
 
 If you would like to arrange a booking, you can now do it online or give us a call.
-www.obautos.com/booking
-
- ${GARAGE.email}
+https://www.obautos.com/booking
 
 Kind regards,
 ${GARAGE.name}
+${GARAGE.email}
 ${GARAGE.website}`;
 
   window.open(
@@ -2593,6 +2620,7 @@ onClick={function() {
         margin: "0 auto"
       }}
     >
+      <Tab id="dashboard" label="Dashboard" />
       <Tab id="vehicles" label={"Vehicles (" + Object.keys(cars).length + ")"} />
       <Tab id="add" label="+ Add Vehicle" />
       <Tab id="nct" label="NCT Check" />
@@ -3421,7 +3449,151 @@ const sorted = bookings.slice().sort(function(a, b) {
           })()}
         </div>
       )}
+{view === "dashboard" && (
+  <>
+    <h2
+      style={{
+        fontFamily: "Barlow Condensed",
+        fontSize: 30,
+        marginBottom: 24
+      }}
+    >
+      Overview
+    </h2>
 
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, 1fr)",
+        gap: 16,
+        marginBottom: 24
+      }}
+    >
+      <Card>
+        <h3>📅 Bookings This Week</h3>
+        <div
+          style={{
+            fontSize: 42,
+            fontWeight: 700,
+            textAlign: "center",
+            marginTop: 12
+          }}
+        >
+          {bookingsThisWeek.length}
+        </div>
+      </Card>
+
+      <Card>
+        <h3>🔧 Services Due This Month</h3>
+        <div
+          style={{
+            fontSize: 42,
+            fontWeight: 700,
+            textAlign: "center",
+            marginTop: 12
+          }}
+        >
+          {dueServices.length}
+        </div>
+      </Card>
+
+      <Card>
+        <h3>📋 Total Vehicles</h3>
+        <div
+          style={{
+            fontSize: 42,
+            fontWeight: 700,
+            textAlign: "center",
+            marginTop: 12
+          }}
+        >
+          {Object.keys(cars).length}
+        </div>
+      </Card>
+    </div>
+
+    <Card>
+
+      <h3 style={{ marginBottom: 20 }}>
+        📅 Bookings This Week
+      </h3>
+
+      {bookingsThisWeek.length === 0 ? (
+
+        <p>No bookings this week.</p>
+
+      ) : (
+
+        Object.keys(groupedBookings).map(function(date) {
+
+          return (
+
+            <div key={date} style={{ marginBottom: 24 }}>
+
+              <h4
+                style={{
+                  marginBottom: 10,
+                  borderBottom: "1px solid " + C.border,
+                  paddingBottom: 6
+                }}
+              >
+                {new Date(date + "T00:00:00").toLocaleDateString("en-IE", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long"
+                })}
+              </h4>
+
+              {groupedBookings[date].map(function(booking) {
+
+                const car = cars[booking.registration];
+
+                return (
+
+                  <div
+                    key={booking.id}
+                    style={{
+                      padding: 10,
+                      marginBottom: 10,
+                      borderLeft: "4px solid " + C.accent,
+                      background: "#fafafa",
+                      borderRadius: 6
+                    }}
+                  >
+
+                    <strong>{booking.registration}</strong>
+<div style={{ marginTop: 6 }}>
+  {car?.make} {car?.model}
+                   <div>{car?.owner || "-"}</div>
+
+<div style={{ color: C.muted }}>
+  📞 {car?.mobile || "-"}
+</div>
+
+<div style={{ color: C.muted }}>
+  ✉️ {car?.email || "-"}
+</div>
+
+
+</div>
+
+                  </div>
+
+                );
+
+              })}
+
+            </div>
+
+          );
+
+        })
+
+      )}
+
+    </Card>
+  </>
+)}
       {view === "parts" && (
         <PartsPanel cars={cars} parts={parts} setParts={setParts} />
       )}
