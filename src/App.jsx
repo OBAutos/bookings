@@ -1895,6 +1895,9 @@ const [serviceDate, setServiceDate] = useState(
 const [historyReg, setHistoryReg] = useState(null);
 const [serviceHistory, setServiceHistory] = useState([]);
 const [vehicleSearch, setVehicleSearch] = useState("");
+useEffect(() => {
+  loadDueServices(serviceDueFilter);
+}, []);
 const today = new Date();
 
 const startOfWeek = new Date(today);
