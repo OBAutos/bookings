@@ -3521,7 +3521,7 @@ function AdminLogin({ onSuccess }) {
   }
 
   return (
-    <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "30vh", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
       <Card style={{ width: "100%", maxWidth: 1200 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <div style={{ fontSize: 36 }}>&#128272;</div>
