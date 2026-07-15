@@ -1539,8 +1539,8 @@ setStep("done");
   }
 
   return (
-    <div style={{ maxWidth: 600, margin: "0 auto" }}>
-      <div style={{ display: "flex", gap: 0, marginBottom: 32 }}>
+<div style={{ width: "100%" }}>
+        <div style={{ display: "flex", gap: 0, marginBottom: 32 }}>
         {["Find Your Car","Choose Service","Pick a Date","Confirm"].map(function(s, i) {
           const active = i === stepIdx;
           const done = i < stepIdx;
