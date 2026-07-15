@@ -2560,6 +2560,7 @@ onClick={function() {
         fontWeight: 600,
         fontSize: 13,
         cursor: "pointer",
+          flexShrink: 0,
         background: active ? C.accent : "transparent",
         color: active ? "#fff" : C.muted
       }}
@@ -2611,18 +2612,20 @@ onClick={function() {
       Admin Dashboard
     </h2>
 
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "center",
-        gap: 4,
-        background: C.card,
-        padding: 4,
-        borderRadius: 10,
-        width: "fit-content",
-        margin: "0 auto"
-      }}
-    >
+<div
+  style={{
+    display: "flex",
+    gap: 4,
+    background: C.card,
+    padding: 4,
+    borderRadius: 10,
+    overflowX: "auto",
+    whiteSpace: "nowrap",
+    width: "100%",
+    justifyContent: "flex-start",
+    WebkitOverflowScrolling: "touch"
+  }}
+>
       <Tab id="dashboard" label="Dashboard" />
       <Tab id="vehicles" label={"Vehicles (" + Object.keys(cars).length + ")"} />
       <Tab id="add" label="+ Add Vehicle" />
@@ -3467,8 +3470,10 @@ const sorted = bookings.slice().sort(function(a, b) {
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(3, 1fr)",
-        gap: 16,
+    gridTemplateColumns:
+      window.innerWidth < 768
+        ? "1fr"
+        : "repeat(3, 1fr)",        gap: 16,
         marginBottom: 24
       }}
     >
