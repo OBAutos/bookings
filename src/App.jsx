@@ -1220,7 +1220,14 @@ const ALL_SERVICES = ["Full Service","Intermediate Service","Brake Fluid","Front
 
 const BAND1 = { "Interim Service": 180, "Full Service": 300, "NCT Prep": 45, "Diagnostics": 75 };
 const MULTIPLIERS = { "Band 1": 1, "Band 2": 1.20, "Band 3": 1.32 };
-
+const GARAGE = {
+  name: "OB Autos",
+  logo: "https://obautos.com/wp-content/uploads/2026/07/Logo-1-1024x250.png",
+  address: "Unit 6 Beechlawn Industrial Complex, Greenhills D12 EAX0.",
+  mobile: "087 603 8729",
+  email: "info@obautos.com",
+  website: "www.obautos.com"
+};
 function getPrice(service, band) {
   const base = BAND1[service];
   if (!base) return null;
@@ -2274,7 +2281,169 @@ console.log("Error:", error);
     loadHistory(historyReg);
   }
 }
+function printServiceHistory() {
+  const vehicle = cars[historyReg];
 
+  if (!vehicle) return;
+
+  const printWindow = window.open("", "_blank");
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Service History</title>
+
+        <style>
+          body{
+            font-family: Arial, sans-serif;
+            margin:40px;
+            color:#222;
+          }
+
+          h1{
+            margin-bottom:5px;
+          }
+
+          h2{
+            margin-top:30px;
+            border-bottom:2px solid #22c007;
+            padding-bottom:6px;
+          }
+
+          table{
+            width:100%;
+            border-collapse:collapse;
+            margin-top:20px;
+          }
+
+          td{
+            padding:6px 0;
+          }
+
+          hr{
+            margin:25px 0;
+          }
+        </style>
+      </head>
+
+      <body>
+
+<div
+  style="
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:60px;
+    margin-bottom:35px;
+    border-bottom:2px solid #031634;
+    padding-bottom:20px;
+  "
+>
+
+  <div>
+    <img
+      src="${GARAGE.logo}"
+      style="
+        width:500px;
+        height:auto;
+      "
+    />
+  </div>
+
+  <div
+    style="
+      text-align:left;
+      font-size:14px;
+      line-height:1.6;
+    "
+  >
+    <strong style="font-size:18px;">
+      ${GARAGE.name}
+    </strong><br>
+
+    ${GARAGE.address}<br>
+
+    ${GARAGE.mobile}<br>
+
+    ${GARAGE.email}<br>
+
+    ${GARAGE.website}
+  </div>
+
+</div>
+
+
+        <h2>Vehicle Details</h2>
+
+        <table>
+          <tr>
+            <td><strong>Registration</strong></td>
+            <td>${historyReg}</td>
+          </tr>
+
+          <tr>
+            <td><strong>Owner</strong></td>
+            <td>${vehicle.owner || ""}</td>
+          </tr>
+
+          <tr>
+            <td><strong>Vehicle</strong></td>
+            <td>${vehicle.make} ${vehicle.model}</td>
+          </tr>
+
+          <tr>
+            <td><strong>VIN</strong></td>
+            <td>${vehicle.vin || ""}</td>
+          </tr>
+
+          <tr>
+            <td><strong>NCT Expiry</strong></td>
+            <td>${vehicle.nctExpiry || ""}</td>
+          </tr>
+        </table>
+        <h2>Service History</h2>
+
+${
+  serviceHistory.length === 0
+    ? "<p>No service history available.</p>"
+    : serviceHistory.map(function(record) {
+        return `
+          <div style="margin-bottom:25px; border-bottom:1px solid #ccc; padding-bottom:15px;">
+
+            <h3>
+              ${new Date(record.service_date + "T00:00:00").toLocaleDateString("en-IE")}
+            </h3>
+
+            <p>
+              <strong>Mileage:</strong>
+              ${
+                record.mileage
+                  ? record.mileage.toLocaleString() + " km"
+                  : "-"
+              }
+            </p>
+
+            <p>
+              <strong>Description</strong><br>
+              ${record.description || ""}
+            </p>
+
+            <p>
+              <strong>Advisories</strong><br>
+              ${record.advisories || "None"}
+            </p>
+
+          </div>
+        `;
+      }).join("")
+}
+
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+}
 function Tab(props) {
   const active = view === props.id;
   return (
@@ -2484,8 +2653,25 @@ onClick={function() {
       border: "1px solid " + C.border
     }}
   >
-    <h4 style={{ marginBottom: 12 }}>Service History</h4>
+<div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12
+  }}
+>
+  <h4 style={{ margin: 0 }}>Service History</h4>
 
+  <Btn
+    small
+    onClick={function() {
+      printServiceHistory(historyReg);
+    }}
+  >
+    Print History
+  </Btn>
+</div>
     {serviceHistory.length === 0 ? (
       <p style={{ color: C.muted }}>No service records found.</p>
     ) : (
