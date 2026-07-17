@@ -1889,11 +1889,25 @@ const [serviceAdvisories, setServiceAdvisories] = useState("");
 const [serviceBooking, setServiceBooking] = useState(null);
 const [serviceVehicle, setServiceVehicle] = useState(null);
 const [editingRecord, setEditingRecord] = useState(null);
+const [estimateVehicle, setEstimateVehicle] = useState(null);
+const [quoteSearch, setQuoteSearch] = useState("");
+const [estimateLines, setEstimateLines] = useState([
+  {
+    description: "",
+    qty: 1,
+    unitPrice: "",
+    total: 0
+  }
+]);
+const [currentEstimateId, setCurrentEstimateId] = useState(null);
 const [serviceDate, setServiceDate] = useState(
   new Date().toISOString().split("T")[0]
 );
 const [historyReg, setHistoryReg] = useState(null);
+const [estimateHistory, setEstimateHistory] = useState([]);
+const [estimateHistoryReg, setEstimateHistoryReg] = useState(null);
 const [serviceHistory, setServiceHistory] = useState([]);
+const [quotes, setQuotes] = useState([]);
 const [vehicleSearch, setVehicleSearch] = useState("");
 useEffect(() => {
   loadDueServices(serviceDueFilter);
@@ -2279,7 +2293,54 @@ async function handleDeleteServiceRecord(id) {
 
   showSuccess("Service record deleted.");
 }
+function startEstimate(registration, vehicle) {
 
+  setEstimateVehicle({
+    registration,
+    customer: vehicle.owner || "",
+    vehicle: vehicle.make + " " + vehicle.model
+  });
+setCurrentEstimateId(null);
+  setEstimateLines([
+    {
+      description: "",
+      qty: 1,
+      unitPrice: "",
+      total: 0
+    }
+  ]);
+
+}
+function addEstimateLine() {
+  setEstimateLines([
+    ...estimateLines,
+    {
+      description: "",
+      qty: 1,
+      unitPrice: "",
+      total: 0
+    }
+  ]);
+}
+function updateEstimateLine(index, field, value) {
+
+  const updated = [...estimateLines];
+
+  updated[index] = {
+    ...updated[index],
+    [field]: value
+  };
+
+  setEstimateLines(updated);
+
+}
+const estimateSubtotal = estimateLines.reduce(function(total, line) {
+  return total + ((Number(line.qty) || 0) * (Number(line.unitPrice) || 0));
+}, 0);
+
+const estimateVAT = estimateSubtotal * 0.23;
+
+const estimateTotal = estimateSubtotal + estimateVAT;
 async function handleUpdateServiceRecord() {
   console.log("Updating record:", editingRecord);
  const { data, error } = await supabase
@@ -2310,6 +2371,514 @@ console.log("Error:", error);
   if (historyReg) {
     loadHistory(historyReg);
   }
+}
+
+async function handleSaveEstimate() {
+
+  try {
+
+    const { data: lastEstimate } = await supabase
+      .from("estimates")
+      .select("estimate_number")
+      .order("estimate_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const estimateNumber = lastEstimate
+      ? lastEstimate.estimate_number + 1
+      : 1001;
+
+    const { data: estimate, error } = await supabase
+      .from("estimates")
+      .insert({
+        estimate_number: estimateNumber,
+        registration: estimateVehicle.registration,
+        customer: estimateVehicle.customer,
+        vehicle: estimateVehicle.vehicle,
+        estimate_date: new Date().toISOString().split("T")[0],
+        subtotal: estimateSubtotal,
+        vat: estimateVAT,
+        total: estimateTotal,
+        status: "Estimate"
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const lines = estimateLines.map(function(line, index) {
+      return {
+        estimate_id: estimate.id,
+        line_order: index + 1,
+        description: line.description,
+        qty: Number(line.qty),
+        unit_price: Number(line.unitPrice),
+        line_total:
+          (Number(line.qty) || 0) *
+          (Number(line.unitPrice) || 0)
+      };
+    });
+
+    const { error: lineError } = await supabase
+      .from("estimate_lines")
+      .insert(lines);
+
+    if (lineError) throw lineError;
+
+    alert("Estimate saved successfully.");
+
+    setEstimateVehicle(null);
+
+  } catch (err) {
+
+    console.error(err);
+    alert(err.message);
+
+  }
+
+}
+async function loadEstimateHistory(registration) {
+
+  const { data, error } = await supabase
+    .from("estimates")
+    .select("*")
+    .eq("registration", registration)
+    .order("estimate_date", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setEstimateHistory(data);
+  setEstimateHistoryReg(registration);
+
+}
+async function openEstimate(estimateId) {
+
+  const { data: estimate, error } = await supabase
+    .from("estimates")
+    .select("*")
+    .eq("id", estimateId)
+    .single();
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  const { data: lines, error: lineError } = await supabase
+    .from("estimate_lines")
+    .select("*")
+    .eq("estimate_id", estimateId)
+    .order("line_order");
+
+  if (lineError) {
+    console.error(lineError);
+    return;
+  }
+
+  setEstimateVehicle({
+    registration: estimate.registration,
+    customer: estimate.customer,
+    vehicle: estimate.vehicle
+  });
+setCurrentEstimateId(estimate.id);
+  setEstimateLines(
+    lines.map(function(line) {
+      return {
+        description: line.description,
+        qty: line.qty,
+        unitPrice: line.unit_price,
+        total: line.line_total
+      };
+    })
+  );
+
+}
+function newQuote() {
+
+  const reg = prompt("Enter vehicle registration:");
+
+  if (!reg) return;
+
+  const registration = reg.trim().replace(/\s/g, "").toUpperCase();
+
+  const vehicle = cars[registration];
+
+  if (!vehicle) {
+    alert("Vehicle not found.");
+    return;
+  }
+
+  setCurrentEstimateId(null);
+
+  setEstimateVehicle({
+    registration: registration,
+    customer: vehicle.owner || "",
+    vehicle: vehicle.make + " " + vehicle.model
+  });
+
+  setEstimateLines([
+    {
+      description: "",
+      qty: 1,
+      unitPrice: "",
+      total: 0
+    }
+  ]);
+
+  setView("vehicles");
+}
+function printEstimate() {
+
+  if (!estimateVehicle) return;
+
+  const estimateNumber = currentEstimateId
+    ? estimateHistory.find(e => e.id === currentEstimateId)?.estimate_number
+    : "Draft";
+
+  const printWindow = window.open("", "_blank");
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Estimate</title>
+
+        <style>
+          body{
+            font-family: Arial, sans-serif;
+            margin:40px;
+            color:#222;
+          }
+
+          h1{
+            margin-bottom:5px;
+          }
+
+          h2{
+            margin-top:30px;
+            border-bottom:2px solid #22c007;
+            padding-bottom:6px;
+          }
+
+          table{
+            width:100%;
+            border-collapse:collapse;
+            margin-top:20px;
+          }
+
+          td, th{
+            padding:8px;
+          }
+
+          .items th{
+            background:#031634;
+            color:white;
+            text-align:left;
+          }
+
+          .items td{
+            border-bottom:1px solid #ddd;
+          }
+
+          .totals{
+            width:320px;
+            margin-left:auto;
+            margin-top:30px;
+          }
+
+          .totals td{
+            padding:6px;
+          }
+
+          .grand{
+            font-size:20px;
+            font-weight:bold;
+            border-top:2px solid #031634;
+          }
+        </style>
+      </head>
+
+      <body>
+
+<div
+  style="
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:60px;
+    margin-bottom:35px;
+    border-bottom:2px solid #031634;
+    padding-bottom:20px;
+  "
+>
+
+  <div>
+    <img
+      src="${GARAGE.logo}"
+      style="
+        width:500px;
+        height:auto;
+      "
+    />
+  </div>
+
+  <div
+    style="
+      text-align:left;
+      font-size:14px;
+      line-height:1.6;
+    "
+  >
+    <strong style="font-size:18px;">
+      ${GARAGE.name}
+    </strong><br>
+
+    ${GARAGE.address}<br>
+
+    ${GARAGE.mobile}<br>
+
+    ${GARAGE.email}<br>
+
+    ${GARAGE.website}
+  </div>
+
+</div>
+
+<table>
+
+<tr>
+<td><strong>Estimate No.</strong></td>
+<td>${estimateNumber}</td>
+</tr>
+
+<tr>
+<td><strong>Date</strong></td>
+<td>${new Date().toLocaleDateString("en-IE")}</td>
+</tr>
+
+<tr>
+<td><strong>Customer</strong></td>
+<td>${estimateVehicle.customer}</td>
+</tr>
+
+<tr>
+<td><strong>Vehicle</strong></td>
+<td>${estimateVehicle.vehicle}</td>
+</tr>
+
+<tr>
+<td><strong>Registration</strong></td>
+<td>${estimateVehicle.registration}</td>
+</tr>
+
+</table>
+
+<h2>Items</h2>
+
+<table class="items">
+
+<tr>
+<th>Description</th>
+<th style="text-align:center;">Qty</th>
+<th style="text-align:right;">Unit €</th>
+<th style="text-align:right;">Total €</th>
+</tr>
+
+${estimateLines.map(function(line){
+
+const total =
+(Number(line.qty)||0) *
+(Number(line.unitPrice)||0);
+
+return `
+
+<tr>
+
+<td>${line.description}</td>
+
+<td style="text-align:center;">
+${line.qty}
+</td>
+
+<td style="text-align:right;">
+€${Number(line.unitPrice).toFixed(2)}
+</td>
+
+<td style="text-align:right;">
+€${total.toFixed(2)}
+</td>
+
+</tr>
+
+`;
+
+}).join("")}
+
+</table>
+
+<table class="totals">
+
+<tr>
+
+<td><strong>Subtotal</strong></td>
+
+<td style="text-align:right;">
+€${estimateSubtotal.toFixed(2)}
+</td>
+
+</tr>
+
+<tr>
+
+<td><strong>VAT (23%)</strong></td>
+
+<td style="text-align:right;">
+€${estimateVAT.toFixed(2)}
+</td>
+
+</tr>
+
+<tr class="grand">
+
+<td>TOTAL</td>
+
+<td style="text-align:right;">
+€${estimateTotal.toFixed(2)}
+</td>
+
+</tr>
+
+</table>
+
+<div
+style="
+margin-top:70px;
+border-top:2px solid #031634;
+padding-top:15px;
+font-size:12px;
+color:#666;
+display:flex;
+justify-content:space-between;
+align-items:flex-start;
+"
+>
+
+<div>
+
+<strong>${GARAGE.name}</strong><br>
+
+${GARAGE.address}<br>
+
+${GARAGE.mobile} |
+
+${GARAGE.email} |
+
+${GARAGE.website}
+
+</div>
+
+<div style="text-align:right;">
+
+Estimate valid for 30 days.<br>
+
+Printed ${new Date().toLocaleString("en-IE")}<br>
+
+Prices include VAT unless stated otherwise.<br>
+
+This estimate is subject to inspection of the vehicle.<br>
+
+<strong>Thank you for your business.</strong>
+
+</div>
+
+</div>
+
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+
+}
+async function printSavedEstimate(id) {
+
+  await openEstimate(id);
+
+  // Wait for the state to update
+  setTimeout(function () {
+    printEstimate();
+  }, 100);
+
+}
+async function deleteEstimate(id) {
+
+  if (!window.confirm("Delete this estimate? This cannot be undone.")) {
+    return;
+  }
+
+  // Delete line items first
+  const { error: linesError } = await supabase
+    .from("estimate_lines")
+    .delete()
+    .eq("estimate_id", id);
+
+  if (linesError) {
+    console.error(linesError);
+    alert("Unable to delete estimate lines.");
+    return;
+  }
+
+  // Delete estimate
+  const { error } = await supabase
+    .from("estimates")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error(error);
+    alert("Unable to delete estimate.");
+    return;
+  }
+
+  // Refresh the list
+  loadEstimateHistory(estimateHistoryReg);
+
+  // Close the editor if the deleted estimate is open
+  if (currentEstimateId === id) {
+    setCurrentEstimateId(null);
+    setEstimateVehicle(null);
+    setEstimateLines([
+      {
+        description: "",
+        qty: 1,
+        unitPrice: "",
+        total: 0
+      }
+    ]);
+  }
+
+  alert("Estimate deleted.");
+}
+async function loadQuotes() {
+
+  const { data, error } = await supabase
+    .from("estimates")
+    .select("*")
+    .order("estimate_date", { ascending: false });
+
+  console.log("Quotes:", data);
+  console.log("Error:", error);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setQuotes(data);
 }
 function emailReminder(registration, vehicle) {
     if (!vehicle.email) {
@@ -2538,20 +3107,25 @@ ${
 }
 function Tab(props) {
   const active = view === props.id;
+
   return (
     <button
-onClick={function() {
-  setView(props.id);
+      onClick={function() {
+        setView(props.id);
 
-  if (props.id === "serviceDue") {
-    loadDueServices(serviceDueFilter);
-  }
+        if (props.id === "serviceDue") {
+          loadDueServices(serviceDueFilter);
+        }
 
-  if (props.id !== "edit") {
-    clearForm();
-    setEditReg(null);
-  }
-}}
+        if (props.id === "quotes") {
+          loadQuotes();
+        }
+
+        if (props.id !== "edit") {
+          clearForm();
+          setEditReg(null);
+        }
+      }}
       style={{
         padding: "9px 18px",
         borderRadius: 8,
@@ -2560,7 +3134,7 @@ onClick={function() {
         fontWeight: 600,
         fontSize: 13,
         cursor: "pointer",
-          flexShrink: 0,
+        flexShrink: 0,
         background: active ? C.accent : "transparent",
         color: active ? "#fff" : C.muted
       }}
@@ -2595,6 +3169,16 @@ onClick={function() {
       <Input label="Tech Notes" value={fNotes} onChange={function(e) { setFNotes(e.target.value); }} placeholder="e.g. Diesel, run-flat tyres" />
     </div>
   );
+const filteredQuotes = quotes.filter(function(q) {
+
+  const search = quoteSearch.toLowerCase();
+
+  return (
+    (q.registration || "").toLowerCase().includes(search) ||
+    (q.customer || "").toLowerCase().includes(search)
+  );
+
+});
 
 
   return (
@@ -2645,6 +3229,7 @@ onClick={function() {
         }
       />
       <Tab id="serviceDue" label="Service Due" />
+      <Tab id="quotes" label="Quotes" />
     </div>
 
   </div>
@@ -2980,8 +3565,276 @@ onClick={function() {
     </div>
   </div>
 )}
+{estimateHistoryReg === r && (
+  <div
+    style={{
+      marginTop: 16,
+      padding: 12,
+      background: "#f8f9fa",
+      borderRadius: 8,
+      border: "1px solid " + C.border
+    }}
+  >
+<h4
+  style={{
+    marginTop: 0,
+    color: "#22c007"
+  }}
+>
+  Quotes
+</h4>
+    {estimateHistory.length === 0 ? (
 
-                </div>
+      <p style={{ color: C.muted }}>
+        No estimates found.
+      </p>
+
+    ) : (
+
+      estimateHistory.map(function(est) {
+
+        return (
+
+          <div
+            key={est.id}
+            style={{
+              borderBottom: "1px solid " + C.border,
+              paddingBottom: 12,
+              marginBottom: 12
+            }}
+          >
+
+            <p>
+              <strong>Estimate #{est.estimate_number}</strong>
+            </p>
+
+            <p>
+              {new Date(est.estimate_date + "T00:00:00").toLocaleDateString("en-IE")}
+            </p>
+
+           <p>
+  Total: €{Number(est.total).toFixed(2)}
+</p>
+
+<div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+
+
+<div
+  style={{
+    display: "flex",
+    gap: 8,
+    marginTop: 10
+  }}
+>
+
+  <Btn
+    small
+    onClick={function() {
+      openEstimate(est.id);
+    }}
+  >
+    Edit
+  </Btn>
+<Btn
+  small
+  onClick={function() {
+    deleteEstimate(est.id);
+  }}
+>
+  Delete
+</Btn>
+  <Btn
+    small
+    onClick={function() {
+      printSavedEstimate(est.id);
+    }}
+  >
+    Print
+  </Btn>
+
+</div>
+</div>
+
+          </div>
+
+        );
+
+      })
+
+    )}
+
+  </div>
+)}
+{estimateVehicle?.registration === r && (
+  <div
+    style={{
+      marginTop: 16,
+      padding: 16,
+      background: "#f8f9fa",
+      border: "1px solid " + C.border,
+      borderRadius: 8
+    }}
+  >
+<h3 style={{ marginTop: 0 }}>
+  {currentEstimateId
+    ? `Estimate #${estimateHistory.find(e => e.id === currentEstimateId)?.estimate_number || ""}`
+    : "New Estimate"}
+</h3>
+    <div style={{ marginBottom: 16 }}>
+      <p><strong>Customer:</strong> {estimateVehicle.customer}</p>
+      <p><strong>Vehicle:</strong> {estimateVehicle.vehicle}</p>
+      <p><strong>Registration:</strong> {estimateVehicle.registration}</p>
+    </div>
+
+    <table
+      style={{
+        width: "100%",
+        borderCollapse: "collapse"
+      }}
+    >
+      <thead>
+        <tr>
+          <th style={{ textAlign: "left" }}>Description</th>
+          <th style={{ width: 80 }}>Qty</th>
+          <th style={{ width: 120 }}>Unit €</th>
+          <th style={{ width: 120 }}>Total €</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        {estimateLines.map(function(line, index) {
+
+          return (
+
+            <tr key={index}>
+
+              <td style={{ padding: 4 }}>
+               <input
+  style={{ width: "100%" }}
+  value={line.description}
+  onChange={function(e) {
+    updateEstimateLine(index, "description", e.target.value);
+  }}
+/>
+              </td>
+
+              <td style={{ padding: 4 }}>
+<input
+  type="number"
+  min="1"
+  style={{ width: "100%" }}
+  value={line.qty}
+  onChange={function(e) {
+    updateEstimateLine(index, "qty", Number(e.target.value));
+  }}
+/>
+              </td>
+
+              <td style={{ padding: 4 }}>
+<input
+  type="number"
+  step="0.01"
+  style={{ width: "100%" }}
+  value={line.unitPrice}
+  onChange={function(e) {
+    updateEstimateLine(index, "unitPrice", e.target.value);
+  }}
+/>
+              </td>
+
+              <td style={{ padding: 4 }}>
+               €
+{(
+  (Number(line.qty) || 0) *
+  (Number(line.unitPrice) || 0)
+).toFixed(2)}
+              </td>
+
+            </tr>
+
+          );
+
+        })}
+
+      </tbody>
+    </table>
+
+  <div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginTop: 16
+  }}
+>
+
+  <Btn
+    small
+    onClick={addEstimateLine}
+  >
+    + Add Line
+  </Btn>
+
+  <div
+    style={{
+      minWidth: 220,
+      textAlign: "right",
+      lineHeight: 1.8
+    }}
+  >
+
+    <div>
+      <strong>Subtotal:</strong> €{estimateSubtotal.toFixed(2)}
+    </div>
+
+    <div>
+      <strong>VAT (23%):</strong> €{estimateVAT.toFixed(2)}
+    </div>
+
+    <div
+      style={{
+        marginTop: 8,
+        fontSize: 18,
+        fontWeight: 700,
+        borderTop: "2px solid " + C.border,
+        paddingTop: 8
+      }}
+    >
+      TOTAL €{estimateTotal.toFixed(2)}
+    </div>
+
+  </div>
+
+</div>
+<div
+  style={{
+    display: "flex",
+    gap: 10,
+    marginTop: 20
+  }}
+>
+  <Btn onClick={handleSaveEstimate}>
+    Save Estimate
+  </Btn>
+
+  <Btn onClick={printEstimate}>
+    Print
+  </Btn>
+
+  <Btn
+    variant="ghost"
+    onClick={function() {
+      setEstimateVehicle(null);
+    }}
+  >
+    Cancel
+  </Btn>
+</div>
+  </div>
+)}
+
+</div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
                   <Btn
@@ -3020,7 +3873,33 @@ onClick={function() {
 >
   {historyReg === r ? "Hide History" : "History"}
 </Btn>
+<Btn
+  small
+  onClick={function() {
 
+    if (estimateHistoryReg === r) {
+
+      setEstimateHistoryReg(null);
+      setEstimateHistory([]);
+
+    } else {
+
+      loadEstimateHistory(r);
+
+    }
+
+  }}
+>
+  {estimateHistoryReg === r ? "Hide Quotes" : "Show Quotes"}
+</Btn>
+<Btn
+  small
+  onClick={function() {
+    startEstimate(r, c);
+  }}
+>
+ New Quote
+</Btn>
 <Btn
   small
   variant="ghost"
@@ -3607,6 +4486,184 @@ const sorted = bookings.slice().sort(function(a, b) {
       )}
 
     </Card>
+  </>
+)}
+{view === "quotes" && (
+  <>
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    marginBottom: 24
+  }}
+>
+  <h2
+    style={{
+      fontFamily: "Barlow Condensed",
+      fontSize: 30,
+      margin: 0,
+      color: "#22c007"
+    }}
+  >
+    Quotes
+  </h2>
+
+  <Btn
+    small
+    onClick={function () {
+      newQuote();
+    }}
+  >
+    + New Quote
+  </Btn>
+</div>
+<Card>
+<div style={{ marginBottom: 16 }}>
+
+  <input
+    type="text"
+    placeholder="🔍 Search by registration or customer..."
+    value={quoteSearch}
+    onChange={function(e) {
+      setQuoteSearch(e.target.value);
+    }}
+    style={{
+      width: "100%",
+      padding: "10px 12px",
+      border: "1px solid " + C.border,
+      borderRadius: 8,
+      fontSize: 14
+    }}
+  />
+
+</div>
+{filteredQuotes.length === 0 ? (
+    <p>No quotes found.</p>
+
+  ) : (
+
+    <table
+      style={{
+        width: "100%",
+        borderCollapse: "collapse"
+      }}
+    >
+
+      <thead>
+
+        <tr
+          style={{
+            background: "#f5f5f5"
+          }}
+        >
+
+          <th style={{ textAlign: "left", padding: 10 }}>Quote #</th>
+          <th style={{ textAlign: "left", padding: 10 }}>Date</th>
+          <th style={{ textAlign: "left", padding: 10 }}>Customer</th>
+          <th style={{ textAlign: "left", padding: 10 }}>Registration</th>
+          <th style={{ textAlign: "left", padding: 10 }}>Vehicle</th>
+          <th style={{ textAlign: "right", padding: 10 }}>Total</th>
+          <th style={{ textAlign: "center", padding: 10 }}>Actions</th>
+
+        </tr>
+
+      </thead>
+
+      <tbody>
+
+{filteredQuotes.map(function(q) {
+          return (
+
+            <tr
+              key={q.id}
+              style={{
+                borderBottom: "1px solid " + C.border
+              }}
+            >
+
+              <td style={{ padding: 10 }}>
+                {q.estimate_number}
+              </td>
+
+              <td style={{ padding: 10 }}>
+                {new Date(q.estimate_date + "T00:00:00").toLocaleDateString("en-IE")}
+              </td>
+
+              <td style={{ padding: 10 }}>
+                {q.customer}
+              </td>
+
+              <td style={{ padding: 10 }}>
+                {q.registration}
+              </td>
+
+              <td style={{ padding: 10 }}>
+                {q.vehicle}
+              </td>
+
+              <td
+                style={{
+                  padding: 10,
+                  textAlign: "right"
+                }}
+              >
+                €{Number(q.total).toFixed(2)}
+              </td>
+
+              <td
+                style={{
+                  padding: 10,
+                  display: "flex",
+                  gap: 8,
+                  justifyContent: "center"
+                }}
+              >
+
+<Btn
+  small
+  onClick={async function() {
+    await openEstimate(q.id);
+    setView("vehicles");
+  }}
+>
+  Edit
+</Btn>
+
+                <Btn
+                  small
+                  onClick={function() {
+                    printSavedEstimate(q.id);
+                  }}
+                >
+                  Print
+                </Btn>
+
+                <Btn
+                  small
+                  onClick={function() {
+                    deleteEstimate(q.id);
+                  }}
+                >
+                  Delete
+                </Btn>
+
+              </td>
+
+            </tr>
+
+          );
+
+        })}
+
+      </tbody>
+
+    </table>
+
+  )}
+
+</Card>
   </>
 )}
       {view === "parts" && (
