@@ -1890,7 +1890,13 @@ const [serviceBooking, setServiceBooking] = useState(null);
 const [serviceVehicle, setServiceVehicle] = useState(null);
 const [editingRecord, setEditingRecord] = useState(null);
 const [estimateVehicle, setEstimateVehicle] = useState(null);
+const [currentEstimateNumber, setCurrentEstimateNumber] = useState("");
+const [currentDocumentType, setCurrentDocumentType] = useState("quote");
 const [quoteSearch, setQuoteSearch] = useState("");
+const [invoices, setInvoices] = useState([]);
+const [invoiceSearch, setInvoiceSearch] = useState("");
+const [serviceReceipts, setServiceReceipts] = useState([]);
+const [serviceReceiptSearch, setServiceReceiptSearch] = useState("");
 const [estimateLines, setEstimateLines] = useState([
   {
     description: "",
@@ -2388,21 +2394,22 @@ async function handleSaveEstimate() {
       ? lastEstimate.estimate_number + 1
       : 1001;
 
-    const { data: estimate, error } = await supabase
-      .from("estimates")
-      .insert({
-        estimate_number: estimateNumber,
-        registration: estimateVehicle.registration,
-        customer: estimateVehicle.customer,
-        vehicle: estimateVehicle.vehicle,
-        estimate_date: new Date().toISOString().split("T")[0],
-        subtotal: estimateSubtotal,
-        vat: estimateVAT,
-        total: estimateTotal,
-        status: "Estimate"
-      })
-      .select()
-      .single();
+const { data: estimate, error } = await supabase
+  .from("estimates")
+  .insert({
+    estimate_number: estimateNumber,
+    registration: estimateVehicle.registration,
+    customer: estimateVehicle.customer,
+    vehicle: estimateVehicle.vehicle,
+    estimate_date: new Date().toISOString().split("T")[0],
+    subtotal: estimateSubtotal,
+    vat: estimateVAT,
+    total: estimateTotal,
+    status: "Quote",
+    document_type: "quote"
+  })
+  .select()
+  .single();
 
     if (error) throw error;
 
@@ -2484,6 +2491,8 @@ async function openEstimate(estimateId) {
     vehicle: estimate.vehicle
   });
 setCurrentEstimateId(estimate.id);
+setCurrentDocumentType(estimate.document_type);
+setCurrentEstimateNumber(estimate.estimate_number);
   setEstimateLines(
     lines.map(function(line) {
       return {
@@ -2494,6 +2503,172 @@ setCurrentEstimateId(estimate.id);
       };
     })
   );
+
+}
+async function convertToInvoice(quoteId) {
+
+  try {
+
+    // Load the quote
+    const { data: quote, error } = await supabase
+      .from("estimates")
+      .select("*")
+      .eq("id", quoteId)
+      .single();
+
+    if (error) throw error;
+
+    // Load the quote lines
+    const { data: lines, error: lineError } = await supabase
+      .from("estimate_lines")
+      .select("*")
+      .eq("estimate_id", quoteId)
+      .order("line_order");
+
+    if (lineError) throw lineError;
+
+    // 👇 PUT IT HERE
+    const { data: lastInvoice } = await supabase
+      .from("estimates")
+      .select("estimate_number")
+      .eq("document_type", "invoice")
+      .order("estimate_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const invoiceNumber = lastInvoice
+      ? lastInvoice.estimate_number + 1
+      : 1001;
+      const { data: invoice, error: invoiceError } = await supabase
+  .from("estimates")
+  .insert({
+    estimate_number: invoiceNumber,
+    registration: quote.registration,
+    customer: quote.customer,
+    vehicle: quote.vehicle,
+    estimate_date: new Date().toISOString().split("T")[0],
+    subtotal: quote.subtotal,
+    vat: quote.vat,
+    total: quote.total,
+    status: "Invoice",
+    document_type: "invoice"
+  })
+  .select()
+  .single();
+
+if (invoiceError) throw invoiceError;
+
+const invoiceLines = lines.map(function(line) {
+  return {
+    estimate_id: invoice.id,
+    line_order: line.line_order,
+    description: line.description,
+    qty: line.qty,
+    unit_price: line.unit_price,
+    line_total: line.line_total
+  };
+});
+
+const { error: copyError } = await supabase
+  .from("estimate_lines")
+  .insert(invoiceLines);
+
+if (copyError) throw copyError;
+
+alert("Invoice created successfully.");
+
+loadQuotes();
+loadInvoices();
+  } catch (err) {
+
+    console.error(err);
+
+  }
+
+}
+async function convertToServiceReceipt(quoteId) {
+
+  try {
+
+    // Load the quote
+    const { data: quote, error } = await supabase
+      .from("estimates")
+      .select("*")
+      .eq("id", quoteId)
+      .single();
+
+    if (error) throw error;
+
+    // Load the quote lines
+    const { data: lines, error: lineError } = await supabase
+      .from("estimate_lines")
+      .select("*")
+      .eq("estimate_id", quoteId)
+      .order("line_order");
+
+    if (lineError) throw lineError;
+
+    // Find the next service receipt number
+    const { data: lastReceipt } = await supabase
+      .from("estimates")
+      .select("estimate_number")
+      .eq("document_type", "service_receipt")
+      .order("estimate_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const receiptNumber = lastReceipt
+      ? lastReceipt.estimate_number + 1
+      : 1001;
+
+    // Create the service receipt
+    const { data: receipt, error: receiptError } = await supabase
+      .from("estimates")
+      .insert({
+        estimate_number: receiptNumber,
+        registration: quote.registration,
+        customer: quote.customer,
+        vehicle: quote.vehicle,
+        estimate_date: new Date().toISOString().split("T")[0],
+        subtotal: quote.subtotal,
+        vat: quote.vat,
+        total: quote.total,
+        status: "Service Receipt",
+        document_type: "service_receipt"
+      })
+      .select()
+      .single();
+
+    if (receiptError) throw receiptError;
+
+    // Copy the line items
+    const receiptLines = lines.map(function(line) {
+      return {
+        estimate_id: receipt.id,
+        line_order: line.line_order,
+        description: line.description,
+        qty: line.qty,
+        unit_price: line.unit_price,
+        line_total: line.line_total
+      };
+    });
+
+    const { error: copyError } = await supabase
+      .from("estimate_lines")
+      .insert(receiptLines);
+
+    if (copyError) throw copyError;
+
+    alert("Service Receipt created successfully.");
+
+    loadQuotes();
+    loadServiceReceipts();
+
+  } catch (err) {
+
+    console.error(err);
+
+  }
 
 }
 function newQuote() {
@@ -2528,23 +2703,42 @@ function newQuote() {
     }
   ]);
 
-  setView("vehicles");
+setView("vehicles");
 }
+
 function printEstimate() {
 
   if (!estimateVehicle) return;
 
-  const estimateNumber = currentEstimateId
-    ? estimateHistory.find(e => e.id === currentEstimateId)?.estimate_number
-    : "Draft";
+const estimateNumber = currentEstimateNumber || "Draft";
+
+  const documentType = currentDocumentType;
+
+  console.log("Document type:", documentType);
+  const subtotal = estimateLines.reduce((sum, line) => {
+  return sum + (Number(line.qty) || 0) * (Number(line.unitPrice) || 0);
+}, 0);
+
+const vat = subtotal * 0.23;   // or 0 if you don't use VAT on quotes
+
+const total = documentType === "service_receipt"
+  ? subtotal
+  : subtotal + vat;
 
   const printWindow = window.open("", "_blank");
+
+  // ...rest of your print code...
 
   printWindow.document.write(`
     <html>
       <head>
-        <title>Estimate</title>
-
+<title>${
+  documentType === "invoice"
+    ? "Invoice"
+    : documentType === "service_receipt"
+      ? "Service Receipt"
+      : "Quote"
+}</title>
         <style>
           body{
             font-family: Arial, sans-serif;
@@ -2581,16 +2775,20 @@ function printEstimate() {
           .items td{
             border-bottom:1px solid #ddd;
           }
+.totals{
+  width:400px;
+  margin-left:auto;
+  margin-top:30px;
+}
 
-          .totals{
-            width:320px;
-            margin-left:auto;
-            margin-top:30px;
-          }
+.totals td:first-child{
+  text-align:left;
+}
 
-          .totals td{
-            padding:6px;
-          }
+.totals td:last-child{
+  text-align:right;
+  width:180px;
+}
 
           .grand{
             font-size:20px;
@@ -2649,8 +2847,13 @@ function printEstimate() {
 <table>
 
 <tr>
-<td><strong>Estimate No.</strong></td>
-<td>${estimateNumber}</td>
+<td><strong>${
+  documentType === "invoice"
+    ? "Invoice No."
+    : documentType === "service_receipt"
+      ? "Receipt No."
+      : "Quote No."
+}</strong></td><td>${estimateNumber}</td>
 </tr>
 
 <tr>
@@ -2720,35 +2923,31 @@ ${line.qty}
 
 <table class="totals">
 
+${
+documentType === "service_receipt"
+? `
+<tr class="grand">
+  <td>Total</td>
+  <td>€${total.toFixed(2)}</td>
+</tr>
+`
+: `
 <tr>
-
-<td><strong>Subtotal</strong></td>
-
-<td style="text-align:right;">
-€${estimateSubtotal.toFixed(2)}
-</td>
-
+  <td>Subtotal</td>
+  <td>€${subtotal.toFixed(2)}</td>
 </tr>
 
 <tr>
-
-<td><strong>VAT (23%)</strong></td>
-
-<td style="text-align:right;">
-€${estimateVAT.toFixed(2)}
-</td>
-
+  <td>VAT</td>
+  <td>€${vat.toFixed(2)}</td>
 </tr>
 
 <tr class="grand">
-
-<td>TOTAL</td>
-
-<td style="text-align:right;">
-€${estimateTotal.toFixed(2)}
-</td>
-
+  <td>Total</td>
+  <td>€${total.toFixed(2)}</td>
 </tr>
+`
+}
 
 </table>
 
@@ -2781,15 +2980,21 @@ ${GARAGE.website}
 
 <div style="text-align:right;">
 
+${
+  documentType === "quote"
+    ? `
 Estimate valid for 30 days.<br>
-
 Printed ${new Date().toLocaleString("en-IE")}<br>
-
 Prices include VAT unless stated otherwise.<br>
-
 This estimate is subject to inspection of the vehicle.<br>
-
 <strong>Thank you for your business.</strong>
+`
+    : `
+Printed ${new Date().toLocaleString("en-IE")}<br>
+Thank you for your business.<br>
+We appreciate your custom.
+`
+}
 
 </div>
 
@@ -2803,6 +3008,20 @@ This estimate is subject to inspection of the vehicle.<br>
   printWindow.focus();
   printWindow.print();
 
+}
+async function loadServiceReceipts() {
+  const { data, error } = await supabase
+    .from("estimates")
+    .select("*")
+    .eq("document_type", "service_receipt")
+    .order("estimate_date", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setServiceReceipts(data);
 }
 async function printSavedEstimate(id) {
 
@@ -2864,11 +3083,11 @@ async function deleteEstimate(id) {
   alert("Estimate deleted.");
 }
 async function loadQuotes() {
-
-  const { data, error } = await supabase
-    .from("estimates")
-    .select("*")
-    .order("estimate_date", { ascending: false });
+const { data, error } = await supabase
+  .from("estimates")
+  .select("*")
+  .eq("document_type", "quote")
+  .order("estimate_date", { ascending: false });
 
   console.log("Quotes:", data);
   console.log("Error:", error);
@@ -2879,6 +3098,22 @@ async function loadQuotes() {
   }
 
   setQuotes(data);
+}
+async function loadInvoices() {
+
+  const { data, error } = await supabase
+    .from("estimates")
+    .select("*")
+    .eq("document_type", "invoice")
+    .order("estimate_date", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  setInvoices(data);
+
 }
 function emailReminder(registration, vehicle) {
     if (!vehicle.email) {
@@ -3120,6 +3355,12 @@ function Tab(props) {
         if (props.id === "quotes") {
           loadQuotes();
         }
+        if (props.id === "invoices") {
+  loadInvoices();
+}
+if (props.id === "serviceReceipts") {
+  loadServiceReceipts();
+}
 
         if (props.id !== "edit") {
           clearForm();
@@ -3179,7 +3420,26 @@ const filteredQuotes = quotes.filter(function(q) {
   );
 
 });
+const filteredInvoices = invoices.filter(function(i) {
 
+  const s = invoiceSearch.toLowerCase();
+
+  return (
+    i.registration?.toLowerCase().includes(s) ||
+    i.customer?.toLowerCase().includes(s)
+  );
+
+});
+const filteredServiceReceipts = serviceReceipts.filter(function(r) {
+
+  const search = serviceReceiptSearch.toLowerCase();
+
+  return (
+    (r.registration || "").toLowerCase().includes(search) ||
+    (r.customer || "").toLowerCase().includes(search)
+  );
+
+});
 
   return (
 <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -3230,7 +3490,8 @@ const filteredQuotes = quotes.filter(function(q) {
       />
       <Tab id="serviceDue" label="Service Due" />
       <Tab id="quotes" label="Quotes" />
-    </div>
+      <Tab id="invoices" label="Invoices" />
+<Tab id="serviceReceipts" label="Cash Jobs" />    </div>
 
   </div>
 
@@ -4564,6 +4825,7 @@ const sorted = bookings.slice().sort(function(a, b) {
           <th style={{ textAlign: "left", padding: 10 }}>Customer</th>
           <th style={{ textAlign: "left", padding: 10 }}>Registration</th>
           <th style={{ textAlign: "left", padding: 10 }}>Vehicle</th>
+          <th style={{ textAlign: "right", padding: 10 }}>Subtotal</th>
           <th style={{ textAlign: "right", padding: 10 }}>Total</th>
           <th style={{ textAlign: "center", padding: 10 }}>Actions</th>
 
@@ -4603,53 +4865,102 @@ const sorted = bookings.slice().sort(function(a, b) {
                 {q.vehicle}
               </td>
 
-              <td
-                style={{
-                  padding: 10,
-                  textAlign: "right"
-                }}
-              >
-                €{Number(q.total).toFixed(2)}
-              </td>
-
-              <td
-                style={{
-                  padding: 10,
-                  display: "flex",
-                  gap: 8,
-                  justifyContent: "center"
-                }}
-              >
-
-<Btn
-  small
-  onClick={async function() {
-    await openEstimate(q.id);
-    setView("vehicles");
+<td
+  style={{
+    padding: 10,
+    textAlign: "right"
   }}
 >
-  Edit
-</Btn>
+  €{Number(q.subtotal).toFixed(2)}
+</td>
 
-                <Btn
-                  small
-                  onClick={function() {
-                    printSavedEstimate(q.id);
-                  }}
-                >
-                  Print
-                </Btn>
+<td
+  style={{
+    padding: 10,
+    textAlign: "right",
+    fontWeight: 600
+  }}
+>
+  €{Number(q.total).toFixed(2)}
+</td>
 
-                <Btn
-                  small
-                  onClick={function() {
-                    deleteEstimate(q.id);
-                  }}
-                >
-                  Delete
-                </Btn>
+<td
+  style={{
+    padding: 10,
+    textAlign: "center"
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 6
+    }}
+  >
 
-              </td>
+    <div
+      style={{
+        display: "flex",
+        gap: 4
+      }}
+    >
+      <Btn
+        small
+        onClick={async function() {
+          await openEstimate(q.id);
+          setView("vehicles");
+        }}
+      >
+        Edit
+      </Btn>
+
+      <Btn
+        small
+        onClick={function() {
+          printSavedEstimate(q.id);
+        }}
+      >
+        Print
+      </Btn>
+
+      <Btn
+        small
+        onClick={function() {
+          deleteEstimate(q.id);
+        }}
+      >
+        Delete
+      </Btn>
+    </div>
+
+    <div
+      style={{
+        display: "flex",
+        gap: 4
+      }}
+    >
+      <Btn
+        small
+        onClick={function() {
+          convertToInvoice(q.id);
+        }}
+      >
+        Create Invoice
+      </Btn>
+
+      <Btn
+        small
+        onClick={function() {
+          convertToServiceReceipt(q.id);
+        }}
+      >
+        Cash
+      </Btn>
+    </div>
+
+  </div>
+</td>
 
             </tr>
 
@@ -4664,6 +4975,333 @@ const sorted = bookings.slice().sort(function(a, b) {
   )}
 
 </Card>
+  </>
+)}
+{view === "invoices" && (
+  <>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 16,
+        marginBottom: 24
+      }}
+    >
+      <h2
+        style={{
+          fontFamily: "Barlow Condensed",
+          fontSize: 30,
+          margin: 0,
+          color: "#22c007"
+        }}
+      >
+        Invoices
+      </h2>
+    </div>
+
+    <Card>
+      <div style={{ marginBottom: 16 }}>
+
+        <input
+          type="text"
+          placeholder="🔍 Search by registration or customer..."
+          value={invoiceSearch}
+          onChange={function(e) {
+            setInvoiceSearch(e.target.value);
+          }}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            border: "1px solid " + C.border,
+            borderRadius: 8,
+            fontSize: 14
+          }}
+        />
+
+      </div>
+
+      {filteredInvoices.length === 0 ? (
+
+        <p>No invoices found.</p>
+
+      ) : (
+
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse"
+          }}
+        >
+
+          <thead>
+
+            <tr
+              style={{
+                background: "#f5f5f5"
+              }}
+            >
+
+              <th style={{ textAlign: "left", padding: 10 }}>Invoice #</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Date</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Customer</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Registration</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Vehicle</th>
+              <th style={{ textAlign: "right", padding: 10 }}>Total</th>
+              <th style={{ textAlign: "center", padding: 10 }}>Actions</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {filteredInvoices.map(function(i) {
+
+              return (
+
+                <tr
+                  key={i.id}
+                  style={{
+                    borderBottom: "1px solid " + C.border
+                  }}
+                >
+
+                  <td style={{ padding: 10 }}>
+                    {i.estimate_number}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {new Date(i.estimate_date + "T00:00:00").toLocaleDateString("en-IE")}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {i.customer}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {i.registration}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {i.vehicle}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      textAlign: "right"
+                    }}
+                  >
+                    €{Number(i.total).toFixed(2)}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      display: "flex",
+                      gap: 8,
+                      justifyContent: "center"
+                    }}
+                  >
+
+
+
+                    <Btn
+                      small
+                      onClick={function() {
+                        printSavedEstimate(i.id);
+                      }}
+                    >
+                      Print
+                    </Btn>
+
+                    <Btn
+                      small
+                      onClick={function() {
+                        deleteEstimate(i.id);
+                      }}
+                    >
+                      Delete
+                    </Btn>
+
+                  </td>
+
+                </tr>
+
+              );
+
+            })}
+
+          </tbody>
+
+        </table>
+
+      )}
+
+    </Card>
+  </>
+)}
+{view === "serviceReceipts" && (
+  <>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 16,
+        marginBottom: 24
+      }}
+    >
+      <h2
+        style={{
+          fontFamily: "Barlow Condensed",
+          fontSize: 30,
+          margin: 0,
+          color: "#22c007"
+        }}
+      >
+        Service Receipts
+      </h2>
+    </div>
+
+    <Card>
+      <div style={{ marginBottom: 16 }}>
+
+        <input
+          type="text"
+          placeholder="🔍 Search by registration or customer..."
+          value={serviceReceiptSearch}
+          onChange={function(e) {
+            setServiceReceiptSearch(e.target.value);
+          }}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            border: "1px solid " + C.border,
+            borderRadius: 8,
+            fontSize: 14
+          }}
+        />
+
+      </div>
+
+      {filteredServiceReceipts.length === 0 ? (
+
+        <p>No service receipts found.</p>
+
+      ) : (
+
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse"
+          }}
+        >
+
+          <thead>
+
+            <tr
+              style={{
+                background: "#f5f5f5"
+              }}
+            >
+
+              <th style={{ textAlign: "left", padding: 10 }}>Receipt #</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Date</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Customer</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Registration</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Vehicle</th>
+              <th style={{ textAlign: "right", padding: 10 }}>Total</th>
+              <th style={{ textAlign: "center", padding: 10 }}>Actions</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {filteredServiceReceipts.map(function(r) {
+
+              return (
+
+                <tr
+                  key={r.id}
+                  style={{
+                    borderBottom: "1px solid " + C.border
+                  }}
+                >
+
+                  <td style={{ padding: 10 }}>
+                    {r.estimate_number}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {new Date(r.estimate_date + "T00:00:00").toLocaleDateString("en-IE")}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {r.customer}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {r.registration}
+                  </td>
+
+                  <td style={{ padding: 10 }}>
+                    {r.vehicle}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      textAlign: "right"
+                    }}
+                  >
+€{Number(r.subtotal).toFixed(2)}                  </td>
+
+                  <td
+                    style={{
+                      padding: 10,
+                      display: "flex",
+                      gap: 8,
+                      justifyContent: "center"
+                    }}
+                  >
+
+                    <Btn
+                      small
+                      onClick={function() {
+                        printSavedEstimate(r.id);
+                      }}
+                    >
+                      Print
+                    </Btn>
+
+                    <Btn
+                      small
+                      onClick={function() {
+                        deleteEstimate(r.id);
+                      }}
+                    >
+                      Delete
+                    </Btn>
+
+                  </td>
+
+                </tr>
+
+              );
+
+            })}
+
+          </tbody>
+
+        </table>
+
+      )}
+
+    </Card>
   </>
 )}
       {view === "parts" && (
