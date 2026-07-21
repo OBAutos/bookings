@@ -4422,9 +4422,20 @@ const filteredServiceReceipts = serviceReceipts.filter(function(r) {
       {view === "bookings" && (
         <div>
           {(function() {
-const sorted = bookings.slice().sort(function(a, b) {
-  return a.booking_date.localeCompare(b.booking_date);
-});
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const endDate = new Date(today);
+endDate.setDate(endDate.getDate() + 28);
+
+const sorted = bookings
+  .filter(function(b) {
+    const bookingDate = new Date(b.booking_date + "T00:00:00");
+    return bookingDate >= today && bookingDate <= endDate;
+  })
+  .sort(function(a, b) {
+    return a.booking_date.localeCompare(b.booking_date);
+  });
             const grouped = {};
             sorted.forEach(function(b) {
   if (!grouped[b.booking_date]) grouped[b.booking_date] = [];
