@@ -2834,12 +2834,14 @@ const total = documentType === "service_receipt"
     </strong><br>
 
     ${GARAGE.address}<br>
+    ${GARAGE.email} | 
 
-    ${GARAGE.mobile}<br>
+    ${GARAGE.website}<br>
+${documentType !== "service_receipt"
+  ? "DA Motorsport LTD - VAT No: 4276499UH<br>"
+  : ""
+}
 
-    ${GARAGE.email}<br>
-
-    ${GARAGE.website}
   </div>
 
 </div>
@@ -2974,8 +2976,12 @@ ${GARAGE.mobile} |
 
 ${GARAGE.email} |
 
-${GARAGE.website}
+${GARAGE.website}<br>
 
+${documentType !== "service_receipt"
+  ? "Revolut Bank UAB - IBAN: IE69 REVO 9903 6031 6406 03 &nbsp;&nbsp; BIC: REVOIE23"
+  : ""
+}
 </div>
 
 <div style="text-align:right;">
