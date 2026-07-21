@@ -2837,8 +2837,8 @@ const total = documentType === "service_receipt"
     ${GARAGE.email} | 
 
     ${GARAGE.website}<br>
-${documentType !== "service_receipt"
-  ? "DA Motorsport LTD - VAT No: 4276499UH<br>"
+${documentType === "invoice"
+  ? "DA Motorsport Ltd t/a OB Autos <br> VAT No: 4276499UH<br>"
   : ""
 }
 
@@ -2978,7 +2978,7 @@ ${GARAGE.email} |
 
 ${GARAGE.website}<br>
 
-${documentType !== "service_receipt"
+${documentType === "invoice"
   ? "Revolut Bank UAB - IBAN: IE69 REVO 9903 6031 6406 03 &nbsp;&nbsp; BIC: REVOIE23"
   : ""
 }
