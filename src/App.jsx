@@ -2471,7 +2471,7 @@ async function openEstimate(estimateId) {
 
   if (error) {
     console.error(error);
-    return;
+    return null;
   }
 
   const { data: lines, error: lineError } = await supabase
@@ -2482,7 +2482,7 @@ async function openEstimate(estimateId) {
 
   if (lineError) {
     console.error(lineError);
-    return;
+    return null;
   }
 
   setEstimateVehicle({
@@ -2490,9 +2490,11 @@ async function openEstimate(estimateId) {
     customer: estimate.customer,
     vehicle: estimate.vehicle
   });
-setCurrentEstimateId(estimate.id);
-setCurrentDocumentType(estimate.document_type);
-setCurrentEstimateNumber(estimate.estimate_number);
+
+  setCurrentEstimateId(estimate.id);
+  setCurrentDocumentType(estimate.document_type);
+  setCurrentEstimateNumber(estimate.estimate_number);
+
   setEstimateLines(
     lines.map(function(line) {
       return {
@@ -2504,6 +2506,10 @@ setCurrentEstimateNumber(estimate.estimate_number);
     })
   );
 
+  return {
+    estimate,
+    lines
+  };
 }
 async function convertToInvoice(quoteId) {
 
@@ -2671,6 +2677,94 @@ async function convertToServiceReceipt(quoteId) {
   }
 
 }
+function exportInvoicesCSV() {
+
+  const invoices = filteredInvoices;
+
+  const rows = [];
+
+  rows.push([
+    "Invoice No",
+    "Date",
+    "Customer",
+    "Registration",
+    "Vehicle",
+    "Subtotal",
+    "VAT",
+    "Total"
+  ]);
+
+  invoices.forEach(function (invoice) {
+
+    rows.push([
+      invoice.estimate_number,
+      invoice.estimate_date,
+      invoice.customer,
+      invoice.registration,
+      invoice.vehicle,
+      Number(invoice.subtotal).toFixed(2),
+      Number(invoice.vat).toFixed(2),
+      Number(invoice.total).toFixed(2)
+    ]);
+
+  });
+
+  // Calculate totals
+  const subtotalTotal = invoices.reduce(function(sum, invoice) {
+    return sum + Number(invoice.subtotal || 0);
+  }, 0);
+
+  const vatTotal = invoices.reduce(function(sum, invoice) {
+    return sum + Number(invoice.vat || 0);
+  }, 0);
+
+  const grandTotal = invoices.reduce(function(sum, invoice) {
+    return sum + Number(invoice.total || 0);
+  }, 0);
+
+  // Blank row
+  rows.push([]);
+
+  // Totals row
+  rows.push([
+    "",
+    "",
+    "",
+    "",
+    "TOTALS",
+    subtotalTotal.toFixed(2),
+    vatTotal.toFixed(2),
+    grandTotal.toFixed(2)
+  ]);
+
+  // Convert to CSV
+  const csv = rows
+    .map(function(row) {
+      return row
+        .map(function(value) {
+          return `"${String(value ?? "").replace(/"/g, '""')}"`;
+        })
+        .join(",");
+    })
+    .join("\n");
+
+  // Download
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+
+  const link = document.createElement("a");
+
+  link.href = URL.createObjectURL(blob);
+  link.download = "Invoices.csv";
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(link.href);
+
+} // <-- The function ends here
 function newQuote() {
 
   const reg = prompt("Enter vehicle registration:");
@@ -2706,24 +2800,44 @@ function newQuote() {
 setView("vehicles");
 }
 
-function printEstimate() {
+function printEstimate(data) {
 
-  if (!estimateVehicle) return;
+  const estimate = data?.estimate;
 
-const estimateNumber = currentEstimateNumber || "Draft";
+  const vehicle = estimateVehicle || {
+    registration: estimate?.registration || "",
+    customer: estimate?.customer || "",
+    vehicle: estimate?.vehicle || ""
+  };
 
-  const documentType = currentDocumentType;
+  if (!vehicle) return;
+
+  const estimateNumber = estimate?.estimate_number || "Draft";
+
+  const documentType = estimate?.document_type || currentDocumentType;
+
+  const lines = data?.lines
+    ? data.lines.map(function(line) {
+        return {
+          description: line.description,
+          qty: line.qty,
+          unitPrice: line.unit_price,
+          total: line.line_total
+        };
+      })
+    : estimateLines;
 
   console.log("Document type:", documentType);
-  const subtotal = estimateLines.reduce((sum, line) => {
-  return sum + (Number(line.qty) || 0) * (Number(line.unitPrice) || 0);
-}, 0);
 
-const vat = subtotal * 0.23;   // or 0 if you don't use VAT on quotes
+  const subtotal = lines.reduce((sum, line) => {
+    return sum + (Number(line.qty) || 0) * (Number(line.unitPrice) || 0);
+  }, 0);
 
-const total = documentType === "service_receipt"
-  ? subtotal
-  : subtotal + vat;
+  const vat = subtotal * 0.23;
+
+  const total = documentType === "service_receipt"
+    ? subtotal
+    : subtotal + vat;
 
   const printWindow = window.open("", "_blank");
 
@@ -2848,34 +2962,38 @@ ${documentType === "invoice"
 
 <table>
 
+${
+  documentType !== "service_receipt"
+    ? `
 <tr>
-<td><strong>${
-  documentType === "invoice"
-    ? "Invoice No."
-    : documentType === "service_receipt"
-      ? "Receipt No."
+  <td><strong>${
+    documentType === "invoice"
+      ? "Invoice No."
       : "Quote No."
-}</strong></td><td>${estimateNumber}</td>
+  }</strong></td>
+  <td>${estimateNumber}</td>
 </tr>
+`
+    : ""
+}
 
 <tr>
 <td><strong>Date</strong></td>
 <td>${new Date().toLocaleDateString("en-IE")}</td>
 </tr>
-
 <tr>
 <td><strong>Customer</strong></td>
-<td>${estimateVehicle.customer}</td>
+<td>${vehicle.customer}</td>
 </tr>
 
 <tr>
 <td><strong>Vehicle</strong></td>
-<td>${estimateVehicle.vehicle}</td>
+<td>${vehicle.vehicle}</td>
 </tr>
 
 <tr>
 <td><strong>Registration</strong></td>
-<td>${estimateVehicle.registration}</td>
+<td>${vehicle.registration}</td>
 </tr>
 
 </table>
@@ -2891,8 +3009,7 @@ ${documentType === "invoice"
 <th style="text-align:right;">Total €</th>
 </tr>
 
-${estimateLines.map(function(line){
-
+${lines.map(function(line){
 const total =
 (Number(line.qty)||0) *
 (Number(line.unitPrice)||0);
@@ -3031,12 +3148,11 @@ async function loadServiceReceipts() {
 }
 async function printSavedEstimate(id) {
 
-  await openEstimate(id);
+  const data = await openEstimate(id);
 
-  // Wait for the state to update
-  setTimeout(function () {
-    printEstimate();
-  }, 100);
+  if (!data) return;
+
+  printEstimate(data);
 
 }
 async function deleteEstimate(id) {
@@ -3483,9 +3599,7 @@ const filteredServiceReceipts = serviceReceipts.filter(function(r) {
       <Tab
         id="bookings"
         label={
-          "Bookings (" +
-          bookings.length +
-          ")" +
+          "Upcoming Bookings" +
           (lastLoginTime &&
           bookings.filter(function(b) {
             return b.id > lastLoginTime;
@@ -3494,7 +3608,7 @@ const filteredServiceReceipts = serviceReceipts.filter(function(r) {
             : "")
         }
       />
-      <Tab id="serviceDue" label="Service Due" />
+      <Tab id="serviceDue" label="Services Due" />
       <Tab id="quotes" label="Quotes" />
       <Tab id="invoices" label="Invoices" />
 <Tab id="serviceReceipts" label="Cash Jobs" />    </div>
@@ -5015,6 +5129,14 @@ const sorted = bookings
       >
         Invoices
       </h2>
+        <Btn
+    small
+    onClick={function () {
+      exportInvoicesCSV();
+    }}
+  >
+    Export CSV
+  </Btn>
     </div>
 
     <Card>
