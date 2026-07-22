@@ -1282,8 +1282,7 @@ const C = {
   green: "#22C007", orange: "#22C007",
 };
 
-const ADMIN_USER = "info@obautos.com";
-const ADMIN_PASS = "VDff1600*!";
+
 
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap');
@@ -1428,19 +1427,67 @@ function resetAll() {
   setRegEmail("");
   setRegError("");
 }
+async function handleLookup() {
+  setError("");
 
-  function handleLookup() {
-    setError("");
-    const clean = reg.trim().replace(/\s/g, "").toUpperCase();
-    if (!name.trim()) { setError("Please enter your name."); return; }
-    if (!clean) { setError("Please enter your registration."); return; }
-    const found = cars[clean];
-    if (!found) { setStep("register"); return; }
-    if (!found.owner) setCars(function(prev) { return Object.assign({}, prev, { [clean]: Object.assign({}, prev[clean], { owner: name.trim() }) }); });
-    setCarData(Object.assign({}, found, { owner: found.owner || name.trim(), reg: clean }));
-    setStep("select-service");
+  const clean = reg.trim().replace(/\s/g, "").toUpperCase();
+
+  if (!name.trim()) {
+    setError("Please enter your name.");
+    return;
   }
 
+  if (!clean) {
+    setError("Please enter your registration.");
+    return;
+  }
+
+  const { data, error } = await supabase.rpc("lookup_vehicle", {
+    reg: clean
+  });
+
+  if (error) {
+    console.error(error);
+    setError("Unable to look up your vehicle.");
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    setStep("register");
+    return;
+  }
+
+  const vehicle = data[0];
+
+  const found = {
+    make: vehicle.make,
+    model: vehicle.model,
+    owner: vehicle.owner_name,
+    mobile: vehicle.mobile,
+    email: vehicle.email,
+    services: [
+      "Interim Service",
+      "Full Service",
+      "Brake Fluid",
+      "Front Brakes",
+      "Rear Brakes",
+      "Diagnostics",
+      "Other"
+    ],
+    history: [],
+    notes: "",
+    colour: "",
+    year: null
+  };
+
+  setCarData({
+    ...found,
+    reg: clean,
+    owner: found.owner || name.trim()
+  });
+
+  setStep("select-service");
+}
   async function handleRegister() {
     setRegError("");
     const clean = reg.trim().replace(/\s/g, "").toUpperCase();
@@ -5797,16 +5844,33 @@ function AdminLogin({ onSuccess }) {
   const [attempts, setAttempts] = useState(0);
   const locked = attempts >= 5;
 
-  function handleLogin() {
-    if (locked) return;
-    if (email.trim().toLowerCase() === ADMIN_USER && password === ADMIN_PASS) {
-      setError(""); onSuccess();
-    } else {
-      const next = attempts + 1;
-      setAttempts(next);
-      setError(next >= 5 ? "Too many failed attempts. Please refresh to try again." : "Incorrect email or password. " + (5 - next) + " attempt" + (5 - next !== 1 ? "s" : "") + " remaining.");
-    }
+async function handleLogin() {
+  if (locked) return;
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password
+  });
+
+  if (!error) {
+    setError("");
+    onSuccess();
+    return;
   }
+
+  const next = attempts + 1;
+  setAttempts(next);
+
+  setError(
+    next >= 5
+      ? "Too many failed attempts. Please refresh to try again."
+      : "Incorrect email or password. " +
+          (5 - next) +
+          " attempt" +
+          (5 - next !== 1 ? "s" : "") +
+          " remaining."
+  );
+}
 
   return (
     <div style={{ minHeight: "30vh", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
@@ -5850,6 +5914,18 @@ export default function App() {
   const [tab, setTab] = useState("customer");
   const [adminAuthed, setAdminAuthed] = useState(false);
   const [adminLoginTime, setAdminLoginTime] = useState(null);
+  useEffect(() => {
+  async function checkSession() {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (!error && data.session) {
+      setAdminAuthed(true);
+      setAdminLoginTime(Date.now());
+    }
+  }
+
+  checkSession();
+}, []);
 
   async function loadVehicles() {
   const { data, error } = await supabase
