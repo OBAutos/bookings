@@ -3315,7 +3315,46 @@ ${GARAGE.website}`;
 
   window.open(url, "_blank");
 }
-function whatsappReminder(registration, vehicle) {
+function whatsappBookingReminder(registration, vehicle, booking) {
+  if (!vehicle.mobile) {
+    alert("This customer does not have a mobile number.");
+    return;
+  }
+
+  const phone = vehicle.mobile
+    .replace(/\D/g, "")
+    .replace(/^0/, "353");
+
+  const date = new Date(booking.booking_date + "T00:00:00")
+    .toLocaleDateString("en-IE", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+
+  const message =
+`Hi ${vehicle.owner || "Customer"},
+
+Just a friendly reminder that your ${vehicle.make} ${vehicle.model} (${registration}) is booked in with ${GARAGE.name} on ${date}.
+
+If you need to change your appointment, simply reply to this message or give us a call.
+
+We look forward to seeing you.
+
+Kind regards,
+${GARAGE.name}
+${GARAGE.email}
+${GARAGE.website}`;
+
+  window.open(
+    "https://wa.me/" +
+      phone +
+      "?text=" +
+      encodeURIComponent(message),
+    "_blank"
+  );
+}function whatsappReminder(registration, vehicle) {
   if (!vehicle.mobile) {
     alert("This customer does not have a mobile number.");
     return;
@@ -4753,7 +4792,18 @@ const sorted = bookings
    </>
 ) : (
   <>
-
+<Btn
+  small
+  onClick={function() {
+    whatsappBookingReminder(
+      b.registration,
+      cars[b.registration],
+      b
+    );
+  }}
+>
+  WhatsApp Reminder
+</Btn>
     <Btn
       small
       variant="ghost"
