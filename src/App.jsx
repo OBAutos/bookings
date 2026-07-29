@@ -3761,18 +3761,25 @@ const filteredServiceReceipts = serviceReceipts.filter(function(r) {
 
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 {Object.entries(cars)
- .filter(function(entry) {
+.filter(function(entry) {
   const reg = entry[0].toUpperCase();
   const owner = (entry[1].owner || "").toUpperCase();
   const make = (entry[1].make || "").toUpperCase();
   const model = (entry[1].model || "").toUpperCase();
   const search = vehicleSearch.toUpperCase();
- 
+
   return (
     reg.includes(search) ||
     owner.includes(search) ||
     make.includes(search) ||
     model.includes(search)
+  );
+})
+.sort(function(a, b) {
+  return (a[1].owner || "").localeCompare(
+    b[1].owner || "",
+    "en",
+    { sensitivity: "base" }
   );
 })
   .map(function(entry) {            const r = entry[0];
