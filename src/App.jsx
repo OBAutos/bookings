@@ -2999,7 +2999,7 @@ function printEstimate(data) {
 
     ${GARAGE.website}<br>
 ${documentType === "invoice"
-  ? "DA Motorsport Ltd t/a OB Autos <br> VAT No: 4276499UH<br>"
+  ? "OB Automotive Specialists Ltd T/A OB Autos <br> VAT No: 4276499UH<br>"
   : ""
 }
 
@@ -3132,7 +3132,7 @@ align-items:flex-start;
 
 <div>
 
-<strong>${GARAGE.name}</strong><br>
+<strong>OB Automotive Specialists Ltd. T/A ${GARAGE.name}</strong><br>
 
 ${GARAGE.address}<br>
 
